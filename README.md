@@ -10,7 +10,7 @@ ClonePi will clone a running Raspberry Pi file to a destination SD card plugged 
 
 
 ## Prerequisites
-ClonePi works on Raspberry Pi's running a Debian based OS (Raspbian tested). It requires rsync & dosfstools, these are normally installed but if not, run the following...
+ClonePi works on Raspberry Pi's running a Debian based OS (Raspbian tested). It requires rsync & dosfstools - these are normally installed but if not run the following...
 
 ```
 $ sudo apt-get update
@@ -24,7 +24,7 @@ $ sudo apt-get install dosfstools
 Clone this repo to your Raspberry Pi (or download the zip). Run the installer as root...
 
 ```
-$ git clone 
+$ git clone https://github.com/SpoddyCoder/clonepi.git
 $ cd clonepi
 $ sudo ./install.sh
 ```
@@ -82,13 +82,13 @@ It will format the destination card to match the source disk partition structure
 This can be expected to take a while.
 
 #### Incremental Copy
-Subsequent updates to the an initialised clone.
+Subsequent updates to an initialised clone.
 It will sync files that have changed since last sync.
 This will be much quicker than full init + copy.
 
 
 ## Use cases
-Typical use cases for ClonePi are backing up a system for disaster recover or cloning a system to run on other Pi's. 
+Typical use cases for ClonePi are backing up a system for disaster recovery or cloning a system to run on other Pi's. 
 
 ### Backup
 
@@ -99,8 +99,8 @@ Typical use cases for ClonePi are backing up a system for disaster recover or cl
 
 1. Initialise + copy the disk, eg: `sudo clonepi /dev/sdb --init-destination`
 1. Before unmounting the clone disk (don't press enter to cleanup), use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
-1. Eg: you may want to edit the hostname, network configuration etc.
-1. You can use the script hooks to automate this final step.
+
+Eg: you may want to edit the hostname, network configuration etc. You can use the script hooks to automate this final step.
 
 
 ## Configuration

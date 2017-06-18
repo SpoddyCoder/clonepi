@@ -1,0 +1,27 @@
+#
+# Excludes file for Raspbian OS
+# last updated @ v1.0.0
+#
+# defines files/directories to be excluded from the rsync process
+#
+
+#
+# standard excludes
+# these have been carefully chosen, think twice before editing
+#
+.gvfs
+/dev/*
+/proc/*
+/run/*
+/sys/*
+/tmp/*
+/var/swap/*
+lost\+found/*
+
+
+#
+# place user defined excludes below
+# system specific, eg: application tmp + cache directories
+# NB: no need to define external drives / mount points - clonepi does not cross filesystems by default
+#
+#/var/www/html/mysite/crazybigcache/*

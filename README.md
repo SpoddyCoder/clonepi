@@ -1,6 +1,6 @@
 # ClonePi
 
-ClonePi will clone a running Raspberry Pi file to a destination SD card plugged into a USB card reader. Features:
+ClonePi will clone a running Raspberry Pi to a destination SD card plugged into a USB card reader. Features...
 
 * Works with standard 2 partition Raspbian setups and multi-partition NOOBS setups
 * On-the-fly clone

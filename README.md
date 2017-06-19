@@ -2,11 +2,12 @@
 
 ClonePi will clone a running Raspberry Pi to a destination SD card plugged into a USB card reader. Features...
 
-* Works with standard 2 partition Raspbian setups and multi-partition NOOBS setups
-* On-the-fly clone
-* Size up or down to fit the destination disk
-* Configuration options allow it to be tuned to work with many systems / use cases
-* Script hooks allow it to be extended beyond the default use cases
++ Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
++ Incremental on-the-fly cloning
++ Size up or down to fit the destination disk
++ Configuration options allow it to be tuned to work with many systems / use cases
++ Script hooks allow it to be extended beyond the default use cases
++ Headless operation, works without a GUI
 
 
 ## Prerequisites
@@ -155,6 +156,7 @@ Contributions and pull requests are welcome, but we ask the following guidelines
 + adhere to current coding style used within the source - good comments, tab indents etc.
 + be hygenic, ensure all secondary tasks are done - robustness checks, update summary, readme, installer etc.
 + don't update version num - will be incremented when the PR is merged
+
 
 ## Authors
 1. **Paul Fernihough** - original author - (paul--at--spoddycoder.com)

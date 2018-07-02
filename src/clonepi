@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.0.3
+VER=1.1.0
 
 
 
@@ -24,8 +24,8 @@ usageInfo()
 	echo "   --help                 usage info"
 	echo "   --init-destination     force initialisation of the destination disk"
 	echo "   --fill-destination     resize last partition on destination to fill disk"
-	echo "   --verbose              list files as they are rsynced"
-	echo "   --dry-run              run rsync in dry-run mode"
+	echo "   --rsync-verbose        list files as they are rsynced"
+	echo "   --rsync-dry-run        run rsync in dry-run mode"
 	echo "   --script               TODO: run in non-interactive mode"
 	echo
 	echo "Config:"
@@ -34,7 +34,7 @@ usageInfo()
 	done <<< "$CONF_LIST"
 	echo
 	echo "Examples:"
-	echo "   sudo clonepi /dev/sdb --init-destination --verbose"
+	echo "   sudo clonepi /dev/sdb --init-destination --rsync-verbose"
 	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7"
 	echo
 }
@@ -203,10 +203,10 @@ while [ "$1" ]; do
 			RESIZE_DEST_DISK=true
 			FORCE_DEST_DISK_INIT=true
 			;;
-		-v|--verbose)
+		-v|--rsync-verbose)
 			RSYNC_OPTIONS="${RSYNC_OPTIONS}v"
 			;;
-		-d|--dry-run)
+		-d|--rsync-dry-run)
 			RSYNC_OPTIONS="${RSYNC_OPTIONS}n"
 			;;
 		-s|--script)

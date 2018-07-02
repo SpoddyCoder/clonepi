@@ -64,7 +64,7 @@ $ sudo clone /dev/sdb --init-destination
 
 Clone to card at /dev/sdb after initialising + resizing the disk, list files as they are synced
 ```
-$ sudo clonepi /dev/sdb --fill-destination --verbose
+$ sudo clonepi /dev/sdb --fill-destination --rsync-verbose
 ```
 
 Clone to card using it's UUID. Use this approach if running from cron, as device identifiers can change between reboots
@@ -77,8 +77,8 @@ $ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
 + `--help` show usage info
 + `--init-destination` force initialisation of the destination disk. This will erase all of its contents.
 + `--fill-destination` fill destination disk. Implies `--init-destination`. Will attempt to resize the last partition to fill the destination disk. If the source disk is larger than the destination it will attempt to resize down, but this may or may not leave room for the content.
-+ `--verbose` list all files as they are rsynced.
-+ `--dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
++ `--rsync-verbose` list all files as they are rsynced.
++ `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` TODO: run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron.
 
 ### Modes of Operation
@@ -111,10 +111,12 @@ Typical use cases for ClonePi are backing up a system for disaster recovery or c
 1. Initialise + copy the disk, eg: `sudo clonepi /dev/sdb --init-destination`
 1. Before unmounting the clone disk (don't press enter to cleanup), use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
 
-Eg: you may want to edit the hostname, network configuration etc. You can use the script hooks to automate this final step.
+Eg: you may want to edit the hostname, network configuration etc. **Tip**: You can use the script hooks to automate this final step, see below.
 
 
 ## Configuration
+
+#### Config Files
 ClonePi utilises configuration files at `/etc/clonepi/`. 
 These can be edited to tune ClonePi for your system and use case. 
 Notes on each of the configurable items are included in the files.
@@ -122,6 +124,7 @@ Notes on each of the configurable items are included in the files.
 + **clonepi.conf** - main config file
 + **raspbian.excludes** - files/directories to be excluded from the running OS sync
 
+#### Script Hooks
 Script hooks allow you to inject your own code at specific points during the ClonePi process. Typical use cases;
 
 + Stop services/apps before starting sync and restarting them after sync finishes.
@@ -157,6 +160,9 @@ A couple of tips and a couple warnings when identifying your device;
 1. The script hooks are your friend
 1. ClonePi probably works on non-Debian systems, but you may need to modify the OS_EXCLUDES_FILE (please consider contributing)
 1. Config files are good for most setups, but could be tweaked for others (please consider contributing)
+
+#### Advanced notes
+1. The PARTUUID of the boot volume on the source disk will be identical on the clone.
 
 
 ## Contributing

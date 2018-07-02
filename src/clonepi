@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.0.2
+VER=1.0.3
 
 
 
@@ -18,7 +18,7 @@ usageInfo()
 	echo "https://github.com/SpoddyCoder/clonepi/"
 	echo
 	echo "Usage:"
-	echo "   sudo clonepi [device] [options...]"
+	echo "   sudo clonepi [device|uuid] [options...]"
 	echo
 	echo "Options:"
 	echo "   --help                 usage info"
@@ -33,8 +33,9 @@ usageInfo()
 		echo "   ${CONF_FILE}"
 	done <<< "$CONF_LIST"
 	echo
-	echo "Example:"
+	echo "Examples:"
 	echo "   sudo clonepi /dev/sdb --init-destination --verbose"
+	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7"
 	echo
 }
 doError()
@@ -227,11 +228,17 @@ if [ "$DEST_DISK" = "" ]; then
 fi
 DEST_DISK_DIR=`expr substr $DEST_DISK 1 5`
 if [ ! $DEST_DISK_DIR == "/dev/" ]; then
-	usageInfo
-	exit 1
+	# not using a device identifier - try to look up the source disk by uuid
+	SRCPARTLOOKUP=`findfs UUID=${DEST_DISK}`
+        if [ "$SRCPARTLOOKUP" == "" ];then
+		doError "check that the disk is plugged in and you have used the correct UUID"
+	else
+		# findfs will return a partition - get parent block device name
+		DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
+		echo "UUID used, source disk identified as : ${DEST_DISK}"
+	fi
 fi
 DEST_DISK_NAME=${DEST_DISK#/dev/}
-
 
 
 #################################################

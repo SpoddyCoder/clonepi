@@ -41,6 +41,10 @@ A copy of the config files is placed in `/tmp/clonepi-bak/` in case you need to 
 
 ## Usage
 
+```
+sudo clonepi [device|UUID] [options...]
+```
+
 ClonePi must be run as root
 ```
 $ sudo clonepi --help
@@ -60,6 +64,11 @@ $ sudo clone /dev/sdb --init-destination
 Clone to card at /dev/sdb after initialising + resizing the disk, list files as they are synced
 ```
 $ sudo clonepi /dev/sdb --fill-destination --verbose
+```
+
+Clone to card using it's UUID. Use this approach if running from cron, as device identifiers can change between reboots
+```
+$ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
 ```
 
 ### Options 
@@ -126,9 +135,7 @@ You can optionally end your scripts with an exit code and ClonePi will take the 
 + **exit 2** and clonepi will **output a warning and continue**
 
 
-## Additional Notes
-This project owes it's genesis to rpi-clone and is based on the same clever "partial dd & full rsync" approach.
-If your use case is simple and you are just running a standard 2 partition Raspbian install, then consider using Bill's much simpler and lighter-weight version at https://github.com/billw2/rpi-clone
+## Further Help & Info
 
 #### Some hints for the less experienced
 You will need to know the device name of your SD card. ClonePi cannot determine this for you, but run the following command to identify all attached disks...
@@ -137,14 +144,18 @@ $ sudo fdisk -l
 ```
 A couple of tips and a couple warnings when identifying your device;
 
-1. the first disk will be the current booted Raspberry Pi SD card `mmcblk0p1 / mmcblk0p2` - i.e. the disk you will be cloning from
+1. normally the first disk listed will be the current booted Raspberry Pi SD card: `mmcblk0p1 / mmcblk0p2` - i.e. the disk you will be cloning from
 1. size is normally the easiest way to identify particular SD cards
-1. using the incorrect device identifier will likely result in data loss on that disk
-1. depending on the system setup, the device identifier **can change** between reboots, so you should always confirm the correct disk before running clonepi
+1. using the incorrect device identifier will likely result in data loss on that disk - check twice
+1. depending on the system setup, the device identifier **can change** between reboots, so you should **always** confirm the correct disk before running clonepi
+
 
 #### Some hints for the more experienced
+1. If you are running clonepi via cron, **always use the UUID** to target the drive, see hint above for reason why
+1. To find your device UUID, use blkid: `sudo blkid`
 1. The script hooks are your friend
 1. ClonePi probably works on non-Debian systems, but you may need to modify the OS_EXCLUDES_FILE (please consider contributing)
+1. Config files are good for most setups, but could be tweaked for others (please consider contributing)
 
 
 ## Contributing
@@ -156,6 +167,11 @@ Contributions and pull requests are welcome, but we ask the following guidelines
 + adhere to current coding style used within the source - good comments, tab indents etc.
 + be hygenic, ensure all secondary tasks are done - robustness checks, update summary, readme, installer etc.
 + don't update version num - will be incremented when the PR is merged
+
+
+## Additional Notes
+This project owes it's genesis to rpi-clone and is based on the same clever "partial dd & full rsync" approach.
+If your use case is simple and you are just running a standard 2 partition Raspbian install, then consider using Bill's much simpler and lighter-weight version at https://github.com/billw2/rpi-clone
 
 
 ## Authors

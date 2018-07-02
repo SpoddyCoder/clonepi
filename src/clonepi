@@ -235,7 +235,7 @@ if [ ! $DEST_DISK_DIR == "/dev/" ]; then
 	else
 		# findfs will return a partition - get parent block device name
 		DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
-		echo "UUID used, source disk identified as : ${DEST_DISK}"
+		echo "UUID used, destination disk identified as : ${DEST_DISK}"
 	fi
 fi
 DEST_DISK_NAME=${DEST_DISK#/dev/}

@@ -41,6 +41,7 @@ A copy of the config files is placed in `/tmp/clonepi-bak/` in case you need to 
 
 ## Usage
 
+Pick the drive you want to clone to (destination) and any options you want to apply
 ```
 sudo clonepi [device|UUID] [options...]
 ```

@@ -1,3 +1,15 @@
+## 1.2.1 (4th July 2018)
+
+FEATURES:
+
+ - added EXPORT_PATH config var - makes running from cron easy
+
+IMPROVEMENTS:
+
+
+BUG FIXES:
+
+
 ## 1.2.0 (3rd July 2018)
 
 FEATURES:

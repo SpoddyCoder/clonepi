@@ -1,3 +1,16 @@
+## 1.2.2 (4th July 2018)
+
+FEATURES:
+
+
+IMPROVEMENTS:
+
+
+BUG FIXES:
+
+ - added missed conf var
+
+
 ## 1.2.1 (4th July 2018)
 
 FEATURES:

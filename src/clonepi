@@ -26,7 +26,7 @@ usageInfo()
 	echo "   --fill-destination     resize last partition on destination to fill disk"
 	echo "   --rsync-verbose        list files as they are rsynced"
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
-	echo "   --script               TODO: run in non-interactive mode"
+	echo "   --script               run in non-interactive mode"
 	echo
 	echo "Config:"
 	while read -r CONF_FILE; do
@@ -48,8 +48,11 @@ doError()
 			;;
 		warn)
 			printf "WARNING: ${1}\n"
-			echo
 			WITH_WARNINGS=true
+			if [ $EXIT_ON_WARNING = true ]; then
+				doError "not continuing, EXIT_ON_WARNING is enabled"
+			fi
+			echo
 			;;
 		user)
 			printf "User aborted: ${1}\n"
@@ -71,8 +74,13 @@ doError()
 readUserUnmount()
 {
 	# prompt user to unmount location
+	# (unless running in --script mode)
 	# will exit 0 if user cancels or exit 1 if unmount did not complete
-	read -p "Unmount $1 (yes|no)? " UI < /dev/tty
+	if [ $SCRIPT_MODE = true ]; then
+		UI="y"
+	else
+		read -p "Unmount $1 (yes|no)? " UI < /dev/tty
+	fi
 	if [ "$UI" = "y" -o "$UI" = "yes" ]; then
 		if ! umount $1; then
 			doError "could not unmount $1"
@@ -86,7 +94,7 @@ doCleanup()
 	#
 	# cleanup requires setup has been run
 	#
-	if [ $WAIT_BEFORE_UNMOUNT = true ]; then
+	if [ $WAIT_BEFORE_UNMOUNT = true -a $SCRIPT_MODE = false ]; then
 		read -p "Press ENTER to continue with cleanup... " UI < /dev/tty
 	else
 		echo "Cleaning up..."
@@ -226,6 +234,20 @@ if [ "$DEST_DISK" = "" ]; then
 	usageInfo
 	exit 1
 fi
+
+#
+# finish setup
+#
+# confirm in output that we're running in --script mode
+if [ $SCRIPT_MODE = true ]; then
+	INIT_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
+	echo "$INIT_TIME clonepi is running in non-interactive mode."
+        if [ $EXIT_ON_WARNING = true ]; then
+                doError "All user input assumed yes, until a warning is hit." "info"
+        else
+		doError "EXIT_ON_WARNING is disabled! All user input assumed yes, regardless of warnings." "warn"
+	fi
+fi
 DEST_DISK_DIR=`expr substr $DEST_DISK 1 5`
 if [ ! $DEST_DISK_DIR == "/dev/" ]; then
 	# not using a device identifier - try to look up the source disk by uuid
@@ -237,7 +259,12 @@ if [ ! $DEST_DISK_DIR == "/dev/" ]; then
 		DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
 		echo "UUID used, destination disk identified as : ${DEST_DISK}"
 	fi
+else
+	if [ $SCRIPT_MODE = true ]; then
+		doError "it is recommended to use the device UUID when running in non-interactive mode." "warn" 
+	fi
 fi
+# get the device name without the path
 DEST_DISK_NAME=${DEST_DISK#/dev/}
 
 
@@ -439,7 +466,6 @@ if [ "$UNMOUNTED_SRC_PARTS" != "" ]; then
 fi
 
 
-
 #################################################
 # summary + user confirmation
 #################################################
@@ -505,9 +531,13 @@ echo "${TASK}) Cleanup - source/destination disk partitions & dirs will be unmou
 TASK=$((TASK+1))
 
 echo
-read -p "Do you wish to continue (yes|no)? " UI < /dev/tty
+if [ $SCRIPT_MODE = true ]; then
+	UI="y"
+else
+	read -p "Do you wish to continue (yes|no)? " UI < /dev/tty
+fi
 if [ "$UI" = "y" -o "$UI" = "yes" ]; then
-	START_TIME=`date '+%Y-%m-%d %H:%M:%S'`
+	START_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
 	START_TIMER=`date '+%s'`
 	echo "User confirmed, starting clone process : $START_TIME"
 	echo
@@ -515,7 +545,7 @@ else
 	doError "clone process cancelled." "user"
 fi
 
-
+exit
 
 #################################################
 # clone process start

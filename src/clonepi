@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.1.0
+VER=1.1.1
 
 
 
@@ -545,7 +545,6 @@ else
 	doError "clone process cancelled." "user"
 fi
 
-exit
 
 #################################################
 # clone process start

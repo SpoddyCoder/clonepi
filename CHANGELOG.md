@@ -1,25 +1,18 @@
-## 1.0.2 (18th June 2017)
+## 1.2.0 (3rd July 2018)
 
 FEATURES:
 
- - Initial release
 
 IMPROVEMENTS:
 
-BUG FIXES:
-
-
-## 1.0.3 (2nd July 2018)
-
-FEATURES:
-
- - UUID device lookup
-
-IMPROVEMENTS:
-
+ - moved EXIT_ON_WARNING from config to --ignore-warnings switch as more convenient (potential breaking change)
+ - run output
  - documentation
+ - reversed CHANGELOG order to list latest first
 
 BUG FIXES:
+
+ - removed erroneous exit
 
 
 ## 1.1.0 (3rd July 2018)
@@ -36,3 +29,31 @@ IMPROVEMENTS:
 BUG FIXES:
 
  - fixed silly typo in run output
+
+
+## 1.0.3 (2nd July 2018)
+
+FEATURES:
+
+ - UUID device lookup
+
+IMPROVEMENTS:
+
+ - documentation
+
+BUG FIXES:
+
+
+
+## 1.0.2 (18th June 2017)
+
+FEATURES:
+
+ - Initial release
+
+IMPROVEMENTS:
+
+
+BUG FIXES:
+
+

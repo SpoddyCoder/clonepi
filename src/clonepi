@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.1.1
+VER=1.2.0
 
 
 
@@ -27,6 +27,7 @@ usageInfo()
 	echo "   --rsync-verbose        list files as they are rsynced"
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
 	echo "   --script               run in non-interactive mode"
+	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
 	echo
 	echo "Config:"
 	while read -r CONF_FILE; do
@@ -35,7 +36,7 @@ usageInfo()
 	echo
 	echo "Examples:"
 	echo "   sudo clonepi /dev/sdb --init-destination --rsync-verbose"
-	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7"
+	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7 --script"
 	echo
 }
 doError()
@@ -50,7 +51,7 @@ doError()
 			printf "WARNING: ${1}\n"
 			WITH_WARNINGS=true
 			if [ $EXIT_ON_WARNING = true ]; then
-				doError "not continuing, EXIT_ON_WARNING is enabled"
+				doError "not continuing, check warning and re-run ClonePi. Use --ignore-warnings to suppress this error."
 			fi
 			echo
 			;;
@@ -183,6 +184,7 @@ SRC_LARGER_THAN_DEST=false
 CROSS_FILESYSTEMS=false
 SCRIPT_MODE=false
 WITH_WARNINGS=false
+EXIT_ON_WARNING=true
 # source disk
 SRC_SECTORS=""
 SRC_PARTS=""
@@ -220,6 +222,9 @@ while [ "$1" ]; do
 		-s|--script)
 			SCRIPT_MODE=true
 			;;
+		-w|--ignore-warnings)
+                        EXIT_ON_WARNING=false
+                        ;;
 		*)
 			if [ "$DEST_DISK" != "" ]; then
 				usageInfo
@@ -241,11 +246,11 @@ fi
 # confirm in output that we're running in --script mode
 if [ $SCRIPT_MODE = true ]; then
 	INIT_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
-	echo "$INIT_TIME clonepi is running in non-interactive mode."
+	echo "$INIT_TIME ClonePi is running in non-interactive mode."
         if [ $EXIT_ON_WARNING = true ]; then
                 doError "All user input assumed yes, until a warning is hit." "info"
         else
-		doError "EXIT_ON_WARNING is disabled! All user input assumed yes, regardless of warnings." "warn"
+		doError "running with --ignore-warnings. All user input assumed yes, regardless of warnings." "warn"
 	fi
 fi
 DEST_DISK_DIR=`expr substr $DEST_DISK 1 5`

@@ -1,3 +1,15 @@
+## 1.3.1 (4th July 2018)
+
+FEATURES:
+
+
+IMPROVEMENTS:
+
+ - further refinement to EXPORT_PATH handling
+
+BUG FIXES:
+
+
 ## 1.3.0 (4th July 2018)
 
 FEATURES:

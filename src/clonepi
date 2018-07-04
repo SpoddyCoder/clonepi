@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.2.2
+VER=1.3.0
 
 
 
@@ -28,6 +28,7 @@ usageInfo()
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
 	echo "   --script               run in non-interactive mode"
 	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
+	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
 	echo
 	echo "Config:"
 	while read -r CONF_FILE; do
@@ -185,6 +186,7 @@ CROSS_FILESYSTEMS=false
 SCRIPT_MODE=false
 WITH_WARNINGS=false
 EXIT_ON_WARNING=true
+WAIT_BEFORE_UNMOUNT=false
 # source disk
 SRC_SECTORS=""
 SRC_PARTS=""
@@ -225,6 +227,9 @@ while [ "$1" ]; do
 		-w|--ignore-warnings)
                         EXIT_ON_WARNING=false
                         ;;
+		--wait-before-unmount)
+                        WAIT_BEFORE_UNMOUNT=true
+                        ;;
 		*)
 			if [ "$DEST_DISK" != "" ]; then
 				usageInfo
@@ -253,10 +258,12 @@ if [ $SCRIPT_MODE = true ]; then
 		doError "running with --ignore-warnings. All user input assumed yes, regardless of warnings." "warn"
 	fi
 fi
-# if EXPORT_PATH set, export it as PATH
-if [ -n "$EXPORT_PATH" ]; then
-	doError "Running : export PATH=$EXPORT_PATH" "info"
-	export PATH=$EXPORT_PATH
+# if PATH is not set & EXPORT_PATH is set, export it as PATH
+if [ -z  "$PATH" ]; then
+	if [ -n "$EXPORT_PATH" ]; then
+		doError "PATH not set, exporting PATH=$EXPORT_PATH" "info"
+		export PATH=$EXPORT_PATH
+	fi
 fi
 # get device
 DEST_DISK_DIR=`expr substr $DEST_DISK 1 5`

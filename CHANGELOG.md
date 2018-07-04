@@ -1,3 +1,17 @@
+## 1.3.0 (4th July 2018)
+
+FEATURES:
+
+
+IMPROVEMENTS:
+
+ - moved WAIT_BEFORE_UNMOUNT from config to --wait-before-unmount switch as more convenient (potential breaking change)
+ - additional check that PATH is not set before setting it via EXPORT_PATH, enable it by default in conf (potential breaking change)
+ - removed shorthand switches because they are potentially confusing & therefore dangerous (they were undocumented for this reason and therefore this is not considered a potential breaking change)
+
+BUG FIXES:
+
+
 ## 1.2.2 (4th July 2018)
 
 FEATURES:

@@ -15,13 +15,17 @@ VER=1.3.0
 usageInfo()
 {
 	echo "ClonePi v${VER}"
+	if [ "$1" = "version-only" ]; then
+		return
+	fi
 	echo "https://github.com/SpoddyCoder/clonepi/"
 	echo
 	echo "Usage:"
 	echo "   sudo clonepi [device|uuid] [options...]"
 	echo
 	echo "Options:"
-	echo "   --help                 usage info"
+	echo "   --help|-h              usage info"
+	echo "   --version|-v           version info"
 	echo "   --init-destination     force initialisation of the destination disk"
 	echo "   --fill-destination     resize last partition on destination to fill disk"
 	echo "   --rsync-verbose        list files as they are rsynced"
@@ -208,23 +212,27 @@ while [ "$1" ]; do
 			usageInfo
 			exit 0
 			;;
-		-i|--init-destination)
+		-v|--version)
+			usageInfo "version-only"
+			exit 0
+			;;
+		--init-destination)
 			FORCE_DEST_DISK_INIT=true
 			;;
-		-f|--fill-destination)
+		--fill-destination)
 			RESIZE_DEST_DISK=true
 			FORCE_DEST_DISK_INIT=true
 			;;
-		-v|--rsync-verbose)
+		--rsync-verbose)
 			RSYNC_OPTIONS="${RSYNC_OPTIONS}v"
 			;;
-		-d|--rsync-dry-run)
+		--rsync-dry-run)
 			RSYNC_OPTIONS="${RSYNC_OPTIONS}n"
 			;;
-		-s|--script)
+		--script)
 			SCRIPT_MODE=true
 			;;
-		-w|--ignore-warnings)
+		--ignore-warnings)
                         EXIT_ON_WARNING=false
                         ;;
 		--wait-before-unmount)

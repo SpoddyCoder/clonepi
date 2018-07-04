@@ -54,13 +54,15 @@ $ sudo clonepi --help
 
 ### Options 
 
-+ `--help` show usage info
++ `--help` or `-h` show usage info
++ `--version` or `-v` show ClonePi version
 + `--init-destination` force initialisation of the destination disk. This will erase all of its contents.
 + `--fill-destination` fill destination disk. Implies `--init-destination`. Will attempt to resize the last partition to fill the destination disk. If the source disk is larger than the destination it will attempt to resize down, but this may or may not leave room for the content.
 + `--rsync-verbose` list all files as they are rsynced.
 + `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
++ `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 
 ### Modes of Operation
 
@@ -83,7 +85,7 @@ It will sync files that have changed since last sync.
 This will be much quicker than full init + copy.
 Example:
 ```
-$sudo clonepi /dev/sdc
+$ sudo clonepi /dev/sdc
 ```
 
 #### Non-interactive Mode
@@ -106,7 +108,7 @@ Typical use cases for ClonePi are backing up a system for disaster recovery or c
 ### Cloning for other PI's
 
 1. Initialise + copy the disk, eg: `sudo clonepi /dev/sdb --init-destination`
-1. Before unmounting the clone disk (don't press enter to cleanup), use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
+1. Use the `--wait-before-unmount` switch to pause at the end of the cloning process. Before unmounting the clone disk, use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
 
 Eg: you may want to edit the hostname, network configuration etc. **Top Tip**: You can use the script hooks to automate this final step, see below.
 

@@ -2,12 +2,14 @@
 
 FEATURES:
 
+ - added --version switch
 
 IMPROVEMENTS:
 
  - moved WAIT_BEFORE_UNMOUNT from config to --wait-before-unmount switch as more convenient (potential breaking change)
  - additional check that PATH is not set before setting it via EXPORT_PATH, enable it by default in conf (potential breaking change)
- - removed shorthand switches because they are potentially confusing & therefore dangerous (they were undocumented for this reason and therefore this is not considered a potential breaking change)
+ - removed most shorthand switches because they are potentially confusing & therefore dangerous (they were undocumented for this reason and therefore this is not considered a potential breaking change)
+ - documentation
 
 BUG FIXES:
 

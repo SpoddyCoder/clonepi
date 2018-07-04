@@ -1,3 +1,16 @@
+## 1.3.2 (TBC)
+
+FEATURES:
+
+
+IMPROVEMENTS:
+
+
+BUG FIXES:
+
+ - timestamp at end of run changed for consistency
+
+
 ## 1.3.1 (4th July 2018)
 
 FEATURES:

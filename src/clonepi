@@ -869,7 +869,7 @@ echo
 # may wait for user confirm (set in conf)
 doCleanup
 
-END_TIME=`date '+%Y-%m-%d %H:%M:%S'`
+END_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
 echo
 if [ $WITH_WARNINGS = true ]; then
 	echo "ClonePi finished succesfully but with WARNINGS : $END_TIME"

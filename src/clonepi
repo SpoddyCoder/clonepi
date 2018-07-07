@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.3.2
+VER=1.4.0
 
 
 
@@ -21,7 +21,7 @@ usageInfo()
 	echo "https://github.com/SpoddyCoder/clonepi/"
 	echo
 	echo "Usage:"
-	echo "   sudo clonepi [device|uuid] [options...]"
+	echo "   sudo clonepi [device|uuid|file] [options...]"
 	echo
 	echo "Options:"
 	echo "   --help|-h              usage info"

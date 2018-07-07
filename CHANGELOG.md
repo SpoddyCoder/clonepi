@@ -1,4 +1,4 @@
-## 1.4.0 (TBC)
+## 1.4.0 (7th July 2018)
 
 FEATURES:
 
@@ -7,6 +7,7 @@ FEATURES:
 IMPROVEMENTS:
 
  - run output
+ - warning handling
 
 BUG FIXES:
 

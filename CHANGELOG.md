@@ -1,3 +1,15 @@
+## 1.4.2 (7th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - documentation
+ - run output
+
+BUG FIXES:
+
+
 ## 1.4.1 (7th July 2018)
 
 FEATURES:

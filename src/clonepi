@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.4.1
+VER=1.4.2
 
 
 
@@ -67,7 +67,6 @@ doMsg()
 			if [ $EXIT_ON_WARNING = true -a "$2" = "warn" ]; then
 				doMsg "not continuing, check warning and re-run ClonePi. Use --ignore-warnings to suppress this error." "error"
 			fi
-			echo
 			;;
 		user-abort)
 			cleanupLoopDevice

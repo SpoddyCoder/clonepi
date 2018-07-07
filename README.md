@@ -70,13 +70,13 @@ $ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 + `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
-+ `--quiet` don't show info - will only show messages, warnings & errors.
++ `--quiet` don't show info, show only warnings & errors.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 
 ### Modes of Operation
 
 + If the destination disk/file matches the source partition structure then ClonePi assumes this is an initialised disk and an incremental copy will be performed.
-+ ClonePi will initialise the destination disk/file if its partition structure does not match the source disk
++ ClonePi will require an initialising of the destination disk/file if its partition structure does not match the source disk
 
 #### Initialisation + Copy
 First time setup of the destination disk/file.
@@ -106,19 +106,38 @@ $ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a --script
 ```
 
 ## Use cases
-Typical use cases for ClonePi are backing up a system for disaster recovery or cloning a system to run on other Pi's. 
+Typical use cases for ClonePi are backing up a system for disaster recovery or cloning a system to run on other Pi's.
+The options, configuration files and script hooks allow for a lot of flexibility
+Some typical example use cases follow
 
-### Backup
+### Backup to a plugged in SD card
 
-1. Initialise + copy the disk, eg: `sudo clonepi /dev/sdb --init-destination`
+1. Initialise disk + perform first time copy, eg: `sudo clonepi /dev/sdb --init-destination`
 1. Perform incremental update at regular intervals, eg: `sudo clonepi /dev/sdb`
 
-### Cloning for other PI's
+### Automatically backup to a file on a NAS once a week
 
-1. Initialise + copy the disk, eg: `sudo clonepi /dev/sdb --init-destination`
+1. Mount NAS to the Pi (see google for instructions, inside /mnt/ is normal)
+1. Initialise file + perform first time copy, eg: `sudo clonepi /mnt/nas/system-backups/my-pi.img --init-destination`
+1. Perform incremental updates once a week, automatically via cron
+```
+$ sudo nano crontab -e
+```
+1. Add the following line to run clonepi at midnight on sunday and redirect the output to a log file
+```
+00 00 1 * * /usr/local/sbin/clonepi /mnt/nas/system-backups/my-pi.img --script --quiet >> /var/log/clonepi.log 2>&1
+```
+1. Read the last 50 lines of the log file at any time to ensure its running properly
+```
+$ sudo tail -50 /var/log/clonepi.log
+```
+
+### Cloning SD card for other PI's
+
+1. Initialise disk + perform first time copy, eg: `sudo clonepi /dev/sdb --init-destination --wait-before-unmount`
 1. Use the `--wait-before-unmount` switch to pause at the end of the cloning process. Before unmounting the clone disk, use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
-
-Eg: you may want to edit the hostname, network configuration etc. **Top Tip**: You can use the script hooks to automate this final step, see below.
+1. Eg: you may want to edit the hostname, network configuration etc. 
+1. **Top Tip**: You can use the script hooks to automate this final step, see below.
 
 
 ## Configuration

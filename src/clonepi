@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.3.1
+VER=1.3.2
 
 
 
@@ -50,7 +50,6 @@ doError()
 	case "$2" in
 		info)
 			printf "INFO: ${1}\n"
-			echo
 			;;
 		warn)
 			printf "WARNING: ${1}\n"
@@ -61,6 +60,7 @@ doError()
 			echo
 			;;
 		user)
+			cleanupLoopDevice
 			printf "User aborted: ${1}\n"
 			echo
 			exit 0
@@ -71,6 +71,7 @@ doError()
 			;;
 		*)
 			printf "ERROR: ${1}\n"
+			cleanupLoopDevice
 			echo "Aborting!"
 			echo
 			exit 1
@@ -95,6 +96,20 @@ readUserUnmount()
 		doError "could not unmount $1" "user"
 	fi
 }
+cleanupLoopDevice()
+{
+	#
+	# remove loop device if its been setup
+	#
+	if [ "$LOOP_DEVICE" != "" ]; then
+		losetup -d $LOOP_DEVICE
+		if [ $? = 0 ]; then
+			doError "deleted loop device $LOOP_DEVICE created for the cloning process" "info"
+		else
+			doError "unable to delete the loop device $LOOP_DEVICE created for the cloning process - you should delete this manually or reboot" "info"
+		fi
+	fi
+}
 doCleanup()
 {
 	#
@@ -105,6 +120,8 @@ doCleanup()
 	else
 		echo "Cleaning up..."
 	fi
+	# remove loop device if created for clone process
+	cleanupLoopDevice
 	# refresh source disk partition tables before using mount
 	partprobe $SRC_DISK
 	partprobe $SRC_DISK     # !
@@ -192,16 +209,20 @@ WITH_WARNINGS=false
 EXIT_ON_WARNING=true
 WAIT_BEFORE_UNMOUNT=false
 # source disk
+SRC_DISK_PART_PREFIX="p"
 SRC_SECTORS=""
 SRC_PARTS=""
 SRC_DISK_NAME="${SRC_DISK#/dev/}"
 SRC_EXTENDED_PART_NUM=0
 # destination disk
+DEST_DISK_PART_PREFIX=""
 DEST_SECTORS=""
 DEST_DISK=""
 DEST_DISK_NAME=""
 DEST_DISK_READY=false
 DEST_PARTS=""
+LOOP_DEVICE=""
+INIT_DEST_FILE=false
 
 #
 # parse args
@@ -254,7 +275,7 @@ if [ "$DEST_DISK" = "" ]; then
 fi
 
 #
-# finish setup
+# user feedback + finish pre-clone setup
 #
 # message if running in --script mode
 if [ $SCRIPT_MODE = true ]; then
@@ -275,21 +296,116 @@ if [ -z "$CHECKPATH" ]; then
 		export PATH=$EXPORT_PATH
 	fi
 fi
+#
 # get device
+# or setup destination file & a loop device for it
+#
 DEST_DISK_DIR=`expr substr $DEST_DISK 1 5`
-if [ ! $DEST_DISK_DIR == "/dev/" ]; then
-	# not using a device identifier - try to look up the source disk by uuid
-	SRCPARTLOOKUP=`findfs UUID=${DEST_DISK}`
-        if [ "$SRCPARTLOOKUP" == "" ];then
-		doError "check that the disk is plugged in and you have used the correct UUID"
-	else
-		# findfs will return a partition - get parent block device name
-		DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
-		echo "UUID used, destination disk identified as : ${DEST_DISK}"
-	fi
+if [ $DEST_DISK_DIR == "/dev/" ]; then
+	#
+	# looks like a standard device identifier
+	#
+        if [ $SCRIPT_MODE = true ]; then
+                doError "it is recommended to use the device UUID when running in non-interactive mode." "warn"
+        fi
 else
-	if [ $SCRIPT_MODE = true ]; then
-		doError "it is recommended to use the device UUID when running in non-interactive mode." "warn"
+	# check if this is a file path (UUIDs dont start with a /)
+	DEST_DISK_DIR_ROOT=`expr substr $DEST_DISK 1 1`
+	if [ ! $DEST_DISK_DIR_ROOT == "/" ]; then
+		#
+		# looks like a UUID - look up the source disk
+		#
+        	SRCPARTLOOKUP=`findfs UUID=${DEST_DISK}`
+        	if [ "$SRCPARTLOOKUP" == "" ];then
+        	        doError "check that the disk is plugged in and you have used the correct UUID"
+        	else
+        	        # findfs will return a partition - get parent block device name
+        	        DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
+        	        echo "UUID used, destination disk identified as : ${DEST_DISK}"
+        	fi
+	else
+		#
+		# looks like a file path - perform checks & init loop device
+		#
+		if [ ! -f $DEST_DISK ]; then
+			# file doesnt exist
+			if [ $FORCE_DEST_DISK_INIT = true ]; then
+				doError "destination file $DEST_DISK does not exist and will be created" "info"
+			else
+				doError "destination file $DEST_DISK does not exist and will need to be created.\nRe-run with the --init-destination switch to remove this warning." "warn"
+			fi
+			if ! touch $DEST_DISK ; then
+                               doError "unable to create file $DEST_DISK"
+                        fi
+			INIT_DEST_FILE=true
+		else
+			# file exists - check if it's a previous disk image
+			DEST_DISK_CHECK=`fdisk -l $DEST_DISK`
+			if [ "$?" = 0 ]; then
+				# check the image size
+				SRC_SECTORS=`fdisk -l $SRC_DISK | grep "Disk $SRC_DISK" | cut -f 3 -d, | xargs | sed s/sectors//`
+				DEST_SECTORS=`fdisk -l $DEST_DISK | grep "Disk $DEST_DISK" | cut -f 3 -d, | xargs | sed s/sectors//`
+				if [ $SRC_SECTORS != $DEST_SECTORS ]; then
+					# sectors dont match
+					if [ $FORCE_DEST_DISK_INIT = true ]; then
+						doError "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nA new clone will be created" "info"
+					else
+						doError "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nRe-run with the --init-destination switch to remove this warning." "warn"
+					fi
+					INIT_DEST_FILE=true
+				fi
+			else
+				# not an image
+				if [ $FORCE_DEST_DISK_INIT = true ]; then
+					doError "destination file $DEST_DISK exists, but is not an image file.\nA new clone will be created" "info"
+				else
+					doError "destination file $DEST_DISK exists, but is not an image file.\nRe-run with the --init-destination switch to remove this warning." "warn"
+				fi
+				INIT_DEST_FILE=true
+			fi
+			# file exists & matches source
+			doError "destination file $DEST_DISK exists and will be updated" "info"
+		fi
+		#
+		# perform initial clone to destination file, if required - this will be all that we need to do this run
+		#
+		if [ $INIT_DEST_FILE = true ]; then
+			START_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
+			START_TIMER=`date '+%s'`
+			echo "Starting clone process : $START_TIME"
+			echo
+			# full clone using dd
+			dd if=$SRC_DISK of=$DEST_DISK
+			if [ $? = 0 ]; then
+				END_TIMER=`date '+%s'`
+				PROCESS_TIME=$((END_TIMER - START_TIMER))
+				echo
+				echo "Total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s"
+				echo
+				# exit success
+				exit 0
+			else
+				doError "There was a problem initialising the destination file $DEST_DISK"
+			fi
+		fi
+		#
+		# setup loop device to the destination file - which will enable us to use the same clone process :)
+		#
+		CHECK_LOOP=`losetup -j $DEST_DISK --list --noheadings --output NAME`
+		if [ "$CHECK_LOOP" != "" ]; then
+			# this file already has a loop device setup, warn the user
+			doError "a loop device for the destination file already exists: $CHECK_LOOP.\nIf you choose to continue a new loop device will be created." "warn"
+		fi
+		LOOP_DEVICE=`losetup --partscan --find --show $DEST_DISK`
+		if [ $? = 0 ]; then
+			# loop device setup ok, set it as the destination
+			doError "new loop device created for the clone : $LOOP_DEVICE" "info"
+			DEST_DISK=$LOOP_DEVICE
+			# refersh partition table before running disk probe commands
+			partprobe $DEST_DISK
+		else
+			doError "unable to setup the loop device for $DEST_DISK"
+		fi
 	fi
 fi
 # get the device name without the path
@@ -310,9 +426,18 @@ fi
 if ! cat /proc/partitions | grep -q "\b$DEST_DISK_NAME\b"; then
 	doError "destination disk $DEST_DISK does not exist.\nCheck the disk is plugged in and and you have used the correct disk name."
 fi
-# and doesn't look like a partition
+# check if DEST_DISK_NAME ends with a number
+# if yes - check if it looks like a partition and give a warning
+# if no - apply partition prefix
 if [[ ${DEST_DISK_NAME: -1} =~ ^-?[0-9]+$ ]]; then
-	doError "$DEST_DISK ends with a number, this is probably a partition rather than a disk.\nYou may continue, if you are sure this is the disk you want." "warn"
+	# lsblk will respond with >1 lines for parent block device, 1 line for a partition
+	# NB: this will not pick up partitions on loop devices - not found a way to disambiguate yet! 
+	PARTCHECK=`lsblk -n -o type $DEST_DISK`
+	if [ "$PARTCHECK" == "part" ]; then
+		doError "$DEST_DISK ends with a number and looks like a partition rather than a disk.\nOnly continue if you are sure this is the disk you want." "warn"
+	fi
+	# apply partition prefix to destination
+	DEST_DISK_PART_PREFIX="p"
 fi
 
 # check that the CLONE_MOUNT_DIR and SRC_MOUNT_DIR are not in use
@@ -379,7 +504,11 @@ else
 	DEST_DISK_READY=false
 fi
 if [ $DEST_DISK_READY = false -a $FORCE_DEST_DISK_INIT = false ]; then
-	doError "the source & destination disk partition structures do not match.\nThe destination disk will be formatted to match the source, all existing data on it will be lost." "warn"
+	if [ $FORCE_DEST_DISK_INIT = true ]; then
+		doError "the source & destination disk partition structures do not match.\nThe destination disk will be formatted to match the source, all existing data on it will be lost." "info"
+	else
+		doError "the source & destination disk partition structures do not match.\nRe-run with --init-destination to remove this warning." "warn"
+	fi
 fi
 
 # check src/dest disk sizes - set flags & show info/warnings
@@ -394,7 +523,7 @@ if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 			doError "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nClonePi will attempt to resize the last partition on the destination,\nbut this may result in a partition too small to take all of the content." "warn"
 			RESIZE_DEST_DISK=true
 		else
-			# not init-ing disk, so only show warning
+			# not init-ing disk, so only show info
 			doError "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nThe source content may not fit on the destination." "warn"
 		fi
 	else
@@ -441,10 +570,10 @@ SRC_SYNC_DIRS=`mount | grep $SRC_DISK | awk '{print $3}'`
 # .. and generate their corresponding dest mount points & devices
 while read -r SRC_DEV; do
 	SRC_PART_NUM="${SRC_DEV/${SRC_DISK}}"
-	SRC_PART_NUM="${SRC_PART_NUM/${SRC_DISK_PART_PREFIX}}"
-	DEST_SYNC_DIR="${CLONE_MOUNT_DIR}/${DEST_DISK_NAME}${SRC_PART_NUM}"
+	SRC_PART_NUM="${SRC_PART_NUM/${SRC_DISK_PART_PREFIX}}"	# get just the ordinal, without any prefix
+	DEST_SYNC_DIR="${CLONE_MOUNT_DIR}/${DEST_DISK_NAME}${DEST_DISK_PART_PREFIX}${SRC_PART_NUM}"
 	DEST_SYNC_DIRS="${DEST_SYNC_DIRS}${DEST_SYNC_DIR}"$'\n'
-	DEST_DEV="${DEST_DISK}${SRC_PART_NUM}"
+	DEST_DEV="${DEST_DISK}${DEST_DISK_PART_PREFIX}${SRC_PART_NUM}"
 	DEST_DEVS="${DEST_DEVS}${DEST_DEV}"$'\n'
 done <<< "$SRC_DEVS"
 SRC_DEVS="$SRC_DEVS"$'\n'	# add trailing newline, ready for additional lines to be added below
@@ -455,10 +584,10 @@ while read -r SRC_PART; do
 	SRC_PART_NUM=`echo $SRC_PART | awk '{print $1}'`
 	SRC_PART_TYPE=`echo $SRC_PART | awk '{print $5}'`
 	DEST_PART_NUM=$SRC_PART_NUM
-	DEST_SYNC_DIR="${CLONE_MOUNT_DIR}/${DEST_DISK_NAME}${DEST_PART_NUM}"
+	DEST_SYNC_DIR="${CLONE_MOUNT_DIR}/${DEST_DISK_NAME}${DEST_DISK_PART_PREFIX}${DEST_PART_NUM}"
 	SRC_SYNC_DIR="${SRC_MOUNT_DIR}/${SRC_DISK_NAME}${SRC_DISK_PART_PREFIX}${SRC_PART_NUM}"
 	SRC_DEV="${SRC_DISK}${SRC_DISK_PART_PREFIX}${SRC_PART_NUM}"
-	DEST_DEV="${DEST_DISK}${DEST_PART_NUM}"
+	DEST_DEV="${DEST_DISK}${DEST_DISK_PART_PREFIX}${DEST_PART_NUM}"
 	if [ "$SRC_PART_TYPE" = "extended" ]; then
 		SRC_EXTENDED_PART_NUM=$SRC_PART_NUM	# we'll use this to identify extended partition later in clone process
 	fi
@@ -779,7 +908,7 @@ if [ ! -z $HOOK_PRE_SYNC -a -f $HOOK_PRE_SYNC ]; then
 	EXIT_CODE=$?
 	if [ $EXIT_CODE != 0 ]; then
 		if [ $EXIT_CODE = 2 ]; then
-			doError "pre-sync script exited with error code: $EXIT_CODE" "warn"
+			doError "pre-sync script exited with error code: $EXIT_CODE" "info"
 		else
 			doError "pre-sync script exited with error code: $EXIT_CODE" "error-report"
 			doCleanup
@@ -845,7 +974,7 @@ if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
 	EXIT_CODE=$?
 	if [ $EXIT_CODE != 0 ]; then
 		if [ $EXIT_CODE = 2 ]; then
-			doError "post-sync script exited with error code: $EXIT_CODE" "warn"
+			doError "post-sync script exited with error code: $EXIT_CODE" "info"
 		else
 			doError "post-sync script exited with error code: $EXIT_CODE" "error-report"
 			doCleanup

@@ -1,11 +1,12 @@
 # ClonePi
 
-ClonePi will clone a running Raspberry Pi to a destination SD card plugged into a USB card reader. Features...
+ClonePi will clone a running Raspberry Pi to a destination SD card/device or a file. Features...
 
 + Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
++ Clone to a device or a file
 + Incremental on-the-fly cloning
 + Size up or down to fit the destination disk
-+ Configuration options allow it to be tuned to work with many systems / use cases
++ Configuration options allow it to be tuned to work with many systems
 + Script hooks allow it to be extended beyond the default use cases
 + Headless operation, works without a GUI
 + Optional unattended operation, suitable for cron use
@@ -13,7 +14,6 @@ ClonePi will clone a running Raspberry Pi to a destination SD card plugged into 
 
 ## Prerequisites
 ClonePi works on Raspberry Pi's running a Debian based OS (Raspbian tested). It requires rsync & dosfstools - these are normally installed but if not run the following...
-
 ```
 $ sudo apt-get update
 $ sudo apt-get install rsync
@@ -24,7 +24,6 @@ $ sudo apt-get install dosfstools
 ## Installing / Updating
 
 Clone this repo to your Raspberry Pi (or download the zip). Run the installer as root...
-
 ```
 $ git clone https://github.com/SpoddyCoder/clonepi.git
 $ cd clonepi
@@ -32,7 +31,6 @@ $ sudo ./install.sh
 ```
 
 Simply re-run the installer at any time to update to latest version. To completely remove ClonePi and config files, run the uninstaller...
-
 ```
 $ sudo ./uninstall.sh
 ```
@@ -42,14 +40,24 @@ A copy of the config files is placed in `/tmp/clonepi-bak/` in case you need to 
 
 ## Usage
 
-Pick the drive you want to clone to (destination) and any options you want to apply
+ClonePi must be run as root. Pick the drive you want to clone to (destination) and any options you want to apply
 ```
-sudo clonepi [device|UUID] [options...]
+sudo clonepi [device|UUID|file] [options...]
 ```
 
-ClonePi must be run as root
+ClonePi can clone to a device using standard device identifier
 ```
-$ sudo clonepi --help
+$ sudo clonepi /dev/sdb
+```
+
+Or to a device using its UUID
+```
+$ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
+```
+
+Or to an image file. This requires as much space as the source disk (ie: dont put on the same filesystem as the Pi)
+```
+$ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 ```
 
 ### Options 
@@ -66,13 +74,12 @@ $ sudo clonepi --help
 
 ### Modes of Operation
 
-+ ClonePi will initialise the destination disk if its partition structure does not match the source disk.
-+ If the destination disk matches the source partition structure then ClonePi assumes this is an initialised disk and an incremental copy will be performed.
-+ You can override this behaviour with the command line options.
++ If the destination disk/file matches the source partition structure then ClonePi assumes this is an initialised disk and an incremental copy will be performed.
++ ClonePi will initialise the destination disk if its partition structure does not match the source disk/file
 
 #### Initialisation + Copy
-First time setup of the destination disk.
-It will format the destination card to match the source disk partition structure and then perform a first time sync. 
+First time setup of the destination disk/file.
+It will format the destination card/file to match the source disk partition structure and then perform a first time sync. 
 This can be expected to take a while.
 Example:
 ```
@@ -91,7 +98,7 @@ $ sudo clonepi /dev/sdc
 #### Non-interactive Mode
 Run ClonePi unattended - all user input is assumed yes.
 Useful for automated incremental backup of an initialised disk.
-You are advised to use the destination disk UUID, as normal device identifers (eg: /dev/sdb) can change between reboots (depending on system setup).
+You are advised to use the destination disk UUID, as standard file device identifers can change between reboots.
 Example:
 ```
 $ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a --script
@@ -135,7 +142,7 @@ You can optionally end your scripts with an exit code and ClonePi will take the 
 
 + **exit 0** and clonepi will **continue**
 + **exit 1** and clonepi will **output an error and abort**
-+ **exit 2** and clonepi will **output a warning and continue**
++ **exit 2** and clonepi will **output info and continue**
 
 
 ## Further Help & Info
@@ -147,15 +154,15 @@ $ sudo fdisk -l
 ```
 A couple of tips and a couple warnings when identifying your device;
 
-1. normally the first disk listed will be the current booted Raspberry Pi SD card: `mmcblk0p1 / mmcblk0p2` - i.e. the disk you will be cloning from
 1. size is normally the easiest way to identify particular SD cards
+1. normally the first disk listed will be the current booted Raspberry Pi SD card: `mmcblk0p1 / mmcblk0p2` - i.e. the disk you will be cloning from
 1. using the incorrect device identifier will likely result in data loss on that disk - check twice
 1. depending on the system setup, the device identifier **can change** between reboots, so you should **always** confirm the correct disk before running ClonePi
 
 
 #### Some hints for the more experienced
 1. If you are running ClonePi via cron, **always use the UUID** to target the drive, see hint above for reason why
-1. To find your device UUID, use blkid: `sudo blkid`
+1. To find your device UUID, use: `sudo blkid`
 1. The script hooks are your friend
 1. ClonePi probably works on non-Debian systems, but you may need to modify the OS_EXCLUDES_FILE (please consider contributing)
 1. Config files are good for most setups, but could be tweaked for others (please consider contributing)

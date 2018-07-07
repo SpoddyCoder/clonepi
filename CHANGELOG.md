@@ -1,10 +1,12 @@
-## 1.3.2 (TBC)
+## 1.4.0 (TBC)
 
 FEATURES:
 
+ - clone to file
 
 IMPROVEMENTS:
 
+ - run output
 
 BUG FIXES:
 

@@ -3,8 +3,8 @@
 ClonePi will clone a running Raspberry Pi to a destination SD card/device or a file. Features...
 
 + Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
-+ Clone to a device or a file
 + Incremental on-the-fly cloning
++ Clone to a physical device or a file (stored on a NAS or external disk)
 + Size up or down to fit the destination disk
 + Configuration options allow it to be tuned to work with many systems
 + Script hooks allow it to be extended beyond the default use cases
@@ -55,7 +55,7 @@ Or to a device using its UUID
 $ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
 ```
 
-Or to an image file. This requires as much space as the source disk (ie: dont put on the same filesystem as the Pi)
+Or to an image file. This requires as much space as the source disk (placed on a NAS or external drive)
 ```
 $ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 ```
@@ -70,12 +70,13 @@ $ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 + `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
++ `--quiet` don't show info - will only show messages, warnings & errors.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 
 ### Modes of Operation
 
 + If the destination disk/file matches the source partition structure then ClonePi assumes this is an initialised disk and an incremental copy will be performed.
-+ ClonePi will initialise the destination disk if its partition structure does not match the source disk/file
++ ClonePi will initialise the destination disk/file if its partition structure does not match the source disk
 
 #### Initialisation + Copy
 First time setup of the destination disk/file.

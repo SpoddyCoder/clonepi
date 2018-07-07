@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.4.0
+VER=1.4.1
 
 
 
@@ -32,6 +32,7 @@ usageInfo()
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
 	echo "   --script               run in non-interactive mode"
 	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
+	echo "   --quiet                only output warnings and errors"
 	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
 	echo
 	echo "Config:"
@@ -42,41 +43,67 @@ usageInfo()
 	echo "Examples:"
 	echo "   sudo clonepi /dev/sdb --init-destination --rsync-verbose"
 	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7 --script"
+	echo "   sudo clonepi /mnt/nas/system/backups/pi-plex.img --script --quiet"
 	echo
 }
-doError()
+doMsg()
 {
 	# msg, type
 	case "$2" in
-		info)
-			printf "INFO: ${1}\n"
+		msg)
+			# these are important messages, cannot be turned off
+			printf "${1}\n"
 			;;
-		warn)
-			printf "WARNING: ${1}\n"
+		info)
+			# info can be turned off
+			if [ $QUIET_MODE = false ]; then
+				printf "Info: ${1}\n"
+			fi
+			;;
+		warn|warn-no-abort)
+			# warnings normally cause abort, warn-no-abort doesnt
+			printf "Warning: ${1}\n"
 			WITH_WARNINGS=true
-			if [ $EXIT_ON_WARNING = true ]; then
-				doError "not continuing, check warning and re-run ClonePi. Use --ignore-warnings to suppress this error."
+			if [ $EXIT_ON_WARNING = true -a "$2" = "warn" ]; then
+				doMsg "not continuing, check warning and re-run ClonePi. Use --ignore-warnings to suppress this error." "error"
 			fi
 			echo
 			;;
-		user)
+		user-abort)
 			cleanupLoopDevice
-			printf "User aborted: ${1}\n"
+			printf "User Abort: ${1}\n"
 			echo
 			exit 0
 			;;
-		error-report)
-			printf "ERROR: ${1}\n"
-			echo
+		error|error-report)
+			# errors cause abort, error-reoprt doesnt
+			printf "Error: ${1}\n"
+			if [ "$2" = "error" ]; then
+				cleanupLoopDevice
+				echo "Aborting!"
+				echo
+				exit 1
+			fi
 			;;
 		*)
-			printf "ERROR: ${1}\n"
-			cleanupLoopDevice
-			echo "Aborting!"
-			echo
-			exit 1
+			printf "UNKNOWN MESSAGE TYPE: ${2}\n"
+			doMsg $1 "error"
 			;;
 	esac
+}
+refreshDevice()
+{
+	#
+	# refresh the $1 device
+	# called at various points to refresh the partition table before running mount/disk probe commands
+	#
+	# this was a very vexxing problem - `mount` keeps reporting the cloned disk's /dev/sdb2 partition as mounted to the root dir
+	# this obviously isnt the case! mount is getting confused becasue the clone partition has the same PARTUUID
+	# refreshing the partition table twice(!) seemed to resolve
+	# TODO: may need to consider changing the clone's PARTUUID for duration of clonepi process and changing back at end - just so we can rely on `mount` output
+	#
+	partprobe $1
+	partprobe $1
 }
 readUserUnmount()
 {
@@ -86,14 +113,15 @@ readUserUnmount()
 	if [ $SCRIPT_MODE = true ]; then
 		UI="y"
 	else
+		echo
 		read -p "Unmount $1 (yes|no)? " UI < /dev/tty
 	fi
 	if [ "$UI" = "y" -o "$UI" = "yes" ]; then
 		if ! umount $1; then
-			doError "could not unmount $1"
+			doMsg "could not unmount $1" "error"
 		fi
 	else
-		doError "could not unmount $1" "user"
+		doMsg "could not unmount $1" "user-abort"
 	fi
 }
 cleanupLoopDevice()
@@ -104,9 +132,9 @@ cleanupLoopDevice()
 	if [ "$LOOP_DEVICE" != "" ]; then
 		losetup -d $LOOP_DEVICE
 		if [ $? = 0 ]; then
-			doError "deleted loop device $LOOP_DEVICE created for the cloning process" "info"
+			doMsg "deleted loop device $LOOP_DEVICE created for the cloning process" "info"
 		else
-			doError "unable to delete the loop device $LOOP_DEVICE created for the cloning process - you should delete this manually or reboot" "info"
+			doMsg "unable to delete the loop device $LOOP_DEVICE created for the cloning process - you should delete this manually or reboot" "warn-no-abort"
 		fi
 	fi
 }
@@ -116,55 +144,55 @@ doCleanup()
 	# cleanup requires setup has been run
 	#
 	if [ $WAIT_BEFORE_UNMOUNT = true -a $SCRIPT_MODE = false ]; then
+		echo
 		read -p "Press ENTER to continue with cleanup... " UI < /dev/tty
 	else
-		echo "Cleaning up..."
+		doMsg "cleaning up..." "info"
 	fi
 	# remove loop device if created for clone process
 	cleanupLoopDevice
 	# refresh source disk partition tables before using mount
-	partprobe $SRC_DISK
-	partprobe $SRC_DISK     # !
+	refreshDevice $SRC_DISK
 	# unmount and remove the source dirs - the ones we mounted to do the sync
 	if [ "$UNMOUNT_SRC_DIRS" != "" ]; then
 		while read -r SRC_DIR; do
 			if umount $SRC_DIR; then
-				echo "Unmounted source partition from $SRC_DIR"
+				doMSg "unmounted source partition from $SRC_DIR" "info"
 				if rmdir $SRC_DIR; then
-					echo "Deleted empty source partition dir $SRC_DIR"
+					doMsg "deleted empty source partition dir $SRC_DIR" "info"
 				else
-					doError "could not delete source partition dir $SRC_DIR, perhaps it's not empty?" "warn"
+					doMsg "could not delete source partition dir $SRC_DIR, perhaps it's not empty?" "warn"
 				fi
 			else
-				doError "could not unmount source partiton from ${SRC_DIR}, this shouldn't really happen." "warn"
+				doMsg "could not unmount source partiton from ${SRC_DIR}, this shouldn't really happen." "warn"
 			fi
 		done <<< "$UNMOUNT_SRC_DIRS"
 	fi
 	# umount and remove all destination dirs
 	while read -r DEST_DIR; do
 	        if umount $DEST_DIR; then
-	                echo "Unmounted destination partition from $DEST_DIR"
+	                doMsg "unmounted destination partition from $DEST_DIR" "info"
 			if rmdir $DEST_DIR; then
-	                        echo "Deleted empty destination partition dir $DEST_DIR"
+	                        doMsg "deleted empty destination partition dir $DEST_DIR" "info"
 	                else
-	                        doError "could not delete destination partition dir $DEST_DIR, perhaps it's not empty?" "warn"
+	                        doMsg "could not delete destination partition dir $DEST_DIR, perhaps it's not empty?" "warn"
 	                fi
 	        else
-	                doError "could not unmount destination partition from ${DEST_DIR}, this shouldn't really happen." "warn"
+	                doMsg "could not unmount destination partition from ${DEST_DIR}, this shouldn't really happen." "warn"
 	        fi
 	done <<< "$DEST_SYNC_DIRS"
 	# remove the clone and source dirs
 	if [ "$UNMOUNT_SRC_DIRS" != "" ]; then
 		if rmdir $SRC_MOUNT_DIR; then
-			echo "Removed source dir $SRC_MOUNT_DIR"
+			doMsg "removed source dir $SRC_MOUNT_DIR" "info"
 		else
-			doError "could not remove source dir $SRC_MOUNT_DIR, perhaps it's not empty?" "warn"
+			doMsg "could not remove source dir $SRC_MOUNT_DIR, perhaps it's not empty?" "warn"
 		fi
 	fi
 	if rmdir $CLONE_MOUNT_DIR; then
-	        echo "Removed clone dir $CLONE_MOUNT_DIR"
+	        doMsg "removed clone dir $CLONE_MOUNT_DIR" "info"
 	else
-	        doError "could not remove clone dir $CLONE_MOUNT_DIR, perhaps it's not empty?" "warn"
+	        doMsg "could not remove clone dir $CLONE_MOUNT_DIR, perhaps it's not empty?" "warn"
 	fi
 }
 
@@ -179,7 +207,7 @@ echo
 # must be run as root
 #
 if [ `id -u` != 0 ]; then
-	doError "clonepi needs to be run as root"
+	doMsg "ClonePi needs to be run as root" "error"
 fi
 
 #
@@ -191,7 +219,7 @@ if [ -f ${CONF_DIR}/clonepi.conf ]; then
         . ${CONF_DIR}/clonepi.conf
 	CONF_LIST=`ls -d -1 ${CONF_DIR}/**`
 else
-	doError "${CONF_DIR}/clonepi.conf not found! Please run the installer."
+	doMsg "${CONF_DIR}/clonepi.conf not found! Please run the installer." "error"
 fi
 
 #
@@ -208,6 +236,7 @@ SCRIPT_MODE=false
 WITH_WARNINGS=false
 EXIT_ON_WARNING=true
 WAIT_BEFORE_UNMOUNT=false
+QUIET_MODE=false
 # source disk
 SRC_DISK_PART_PREFIX="p"
 SRC_SECTORS=""
@@ -256,6 +285,9 @@ while [ "$1" ]; do
 		--ignore-warnings)
                         EXIT_ON_WARNING=false
                         ;;
+		--quiet)
+			QUIET_MODE=true
+			;;
 		--wait-before-unmount)
                         WAIT_BEFORE_UNMOUNT=true
                         ;;
@@ -280,11 +312,11 @@ fi
 # message if running in --script mode
 if [ $SCRIPT_MODE = true ]; then
 	INIT_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
-	echo "ClonePi started in non-interactive mode : $INIT_TIME"
+	doMsg "ClonePi started in non-interactive mode : $INIT_TIME" "msg"
         if [ $EXIT_ON_WARNING = true ]; then
-                doError "All user input assumed yes, until a warning is hit." "info"
+                doMsg "all user input assumed yes, until a warning is hit." "info"
         else
-		doError "running with --ignore-warnings. All user input assumed yes, regardless of warnings." "warn"
+		doMsg "running with --ignore-warnings. All user input assumed yes, regardless of warnings." "warn"
 	fi
 fi
 # check if PATH has sbin - if not use the EXPORT_PATH from conf
@@ -292,7 +324,7 @@ fi
 CHECKPATH=`echo $PATH | grep sbin`
 if [ -z "$CHECKPATH" ]; then
 	if [ -n "$EXPORT_PATH" ]; then
-		doError "sbin not found in PATH, exporting PATH=$EXPORT_PATH" "info"
+		doMsg "sbin not found in PATH, exporting PATH=$EXPORT_PATH" "info"
 		export PATH=$EXPORT_PATH
 	fi
 fi
@@ -306,7 +338,7 @@ if [ $DEST_DISK_DIR == "/dev/" ]; then
 	# looks like a standard device identifier
 	#
         if [ $SCRIPT_MODE = true ]; then
-                doError "it is recommended to use the device UUID when running in non-interactive mode." "warn"
+                doMsg "it is recommended to use the device UUID when running in non-interactive mode." "warn"
         fi
 else
 	# check if this is a file path (UUIDs dont start with a /)
@@ -317,11 +349,11 @@ else
 		#
         	SRCPARTLOOKUP=`findfs UUID=${DEST_DISK}`
         	if [ "$SRCPARTLOOKUP" == "" ];then
-        	        doError "check that the disk is plugged in and you have used the correct UUID"
+        	        doMsg "check that the disk is plugged in and you have used the correct UUID" "error"
         	else
         	        # findfs will return a partition - get parent block device name
         	        DEST_DISK="/dev/"`lsblk -no pkname $SRCPARTLOOKUP`
-        	        echo "UUID used, destination disk identified as : ${DEST_DISK}"
+        	        doMsg "UUID used, destination disk identified as : ${DEST_DISK}" "info"
         	fi
 	else
 		#
@@ -330,12 +362,12 @@ else
 		if [ ! -f $DEST_DISK ]; then
 			# file doesnt exist
 			if [ $FORCE_DEST_DISK_INIT = true ]; then
-				doError "destination file $DEST_DISK does not exist and will be created" "info"
+				doMsg "destination file $DEST_DISK does not exist and will be created" "info"
 			else
-				doError "destination file $DEST_DISK does not exist and will need to be created.\nRe-run with the --init-destination switch to remove this warning." "warn"
+				doMsg "destination file $DEST_DISK does not exist and will need to be created.\nRe-run with --init-destination to remove this warning." "warn"
 			fi
 			if ! touch $DEST_DISK ; then
-                               doError "unable to create file $DEST_DISK"
+                               doMsg "unable to create file $DEST_DISK" "error"
                         fi
 			INIT_DEST_FILE=true
 		else
@@ -348,23 +380,23 @@ else
 				if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 					# sectors dont match
 					if [ $FORCE_DEST_DISK_INIT = true ]; then
-						doError "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nA new clone will be created" "info"
+						doMsg "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nA new clone will be created" "info"
 					else
-						doError "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nRe-run with the --init-destination switch to remove this warning." "warn"
+						doMsg "destination file $DEST_DISK exists, but the size does not match the source disk $SRC_DISK.\nRe-run with --init-destination to remove this warning." "warn"
 					fi
 					INIT_DEST_FILE=true
 				fi
 			else
 				# not an image
 				if [ $FORCE_DEST_DISK_INIT = true ]; then
-					doError "destination file $DEST_DISK exists, but is not an image file.\nA new clone will be created" "info"
+					doMsg "destination file $DEST_DISK exists, but is not an image file.\nA new clone will be created" "info"
 				else
-					doError "destination file $DEST_DISK exists, but is not an image file.\nRe-run with the --init-destination switch to remove this warning." "warn"
+					doMsg "destination file $DEST_DISK exists, but is not an image file.\nRe-run with --init-destination to remove this warning." "warn"
 				fi
 				INIT_DEST_FILE=true
 			fi
 			# file exists & matches source
-			doError "destination file $DEST_DISK exists and will be updated" "info"
+			doMsg "destination file $DEST_DISK exists and will be updated" "info"
 		fi
 		#
 		# perform initial clone to destination file, if required - this will be all that we need to do this run
@@ -372,20 +404,25 @@ else
 		if [ $INIT_DEST_FILE = true ]; then
 			START_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
 			START_TIMER=`date '+%s'`
-			echo "Starting clone process : $START_TIME"
-			echo
+			doMsg "Starting clone process : $START_TIME" "msg"
 			# full clone using dd
 			dd if=$SRC_DISK of=$DEST_DISK
 			if [ $? = 0 ]; then
+				# refresh partition table
+				refreshDevice $DEST_DISK
 				END_TIMER=`date '+%s'`
 				PROCESS_TIME=$((END_TIMER - START_TIMER))
-				echo
-				echo "Total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s"
-				echo
+				doMsg "total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s" "info"
+				END_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
+				if [ $WITH_WARNINGS = true ]; then
+					doMsg "ClonePi finished succesfully but with WARNINGS : $END_TIME" "msg"
+				else
+					doMsg "ClonePi finished succesfully : $END_TIME" "msg"
+				fi
 				# exit success
 				exit 0
 			else
-				doError "There was a problem initialising the destination file $DEST_DISK"
+				doMsg "there was a problem initialising the destination file $DEST_DISK" "error"
 			fi
 		fi
 		#
@@ -394,17 +431,20 @@ else
 		CHECK_LOOP=`losetup -j $DEST_DISK --list --noheadings --output NAME`
 		if [ "$CHECK_LOOP" != "" ]; then
 			# this file already has a loop device setup, warn the user
-			doError "a loop device for the destination file already exists: $CHECK_LOOP.\nIf you choose to continue a new loop device will be created." "warn"
+			doMsg "a loop device for the destination file already exists: $CHECK_LOOP.\nIf you choose to continue a new loop device will be created." "warn"
 		fi
 		LOOP_DEVICE=`losetup --partscan --find --show $DEST_DISK`
 		if [ $? = 0 ]; then
 			# loop device setup ok, set it as the destination
-			doError "new loop device created for the clone : $LOOP_DEVICE" "info"
+			doMsg "new loop device created for the clone : $LOOP_DEVICE" "info"
 			DEST_DISK=$LOOP_DEVICE
-			# refersh partition table before running disk probe commands
-			partprobe $DEST_DISK
+			# occasionally see I/O warning when probing the new loop device (not yet solved)
+			#   Warning: Error fsyncing/closing /dev/loop0p1: Input/output error
+			# ... parted still succeeds tho :/
+			# so, lets force the warning now & throw it away
+			DEST_PART_CHECK=`parted -s $DEST_DISK p >/dev/null 2>&1`
 		else
-			doError "unable to setup the loop device for $DEST_DISK"
+			doMsg "unable to setup the loop device for $DEST_DISK" "error"
 		fi
 	fi
 fi
@@ -418,13 +458,13 @@ DEST_DISK_NAME=${DEST_DISK#/dev/}
 
 # check destination != source
 if [ "$DEST_DISK" = "$SRC_DISK" ]; then
-	doError "destination disk $DEST_DISK is same as the source disk."
+	doMsg "destination disk $DEST_DISK is same as the source disk." "error"
 fi
 
 # check the DEST_DISK_NAME exists on the system
 # NB \b for exact match
 if ! cat /proc/partitions | grep -q "\b$DEST_DISK_NAME\b"; then
-	doError "destination disk $DEST_DISK does not exist.\nCheck the disk is plugged in and and you have used the correct disk name."
+	doMsg "destination disk $DEST_DISK does not exist.\nCheck the disk is plugged in and and you have used the correct disk name." "error"
 fi
 # check if DEST_DISK_NAME ends with a number
 # if yes - check if it looks like a partition and give a warning
@@ -434,7 +474,7 @@ if [[ ${DEST_DISK_NAME: -1} =~ ^-?[0-9]+$ ]]; then
 	# NB: this will not pick up partitions on loop devices - not found a way to disambiguate yet! 
 	PARTCHECK=`lsblk -n -o type $DEST_DISK`
 	if [ "$PARTCHECK" == "part" ]; then
-		doError "$DEST_DISK ends with a number and looks like a partition rather than a disk.\nOnly continue if you are sure this is the disk you want." "warn"
+		doMsg "$DEST_DISK ends with a number and looks like a partition rather than a disk.\nOnly continue if you are sure this is the disk you want." "warn"
 	fi
 	# apply partition prefix to destination
 	DEST_DISK_PART_PREFIX="p"
@@ -443,24 +483,24 @@ fi
 # check that the CLONE_MOUNT_DIR and SRC_MOUNT_DIR are not in use
 IS_MOUNTED=`fgrep "\b$CLONE_MOUNT_DIR\b" /etc/mtab | awk '{print $1}'`
 if [ "$IS_MOUNTED" != "" ]; then
-	doError "${CLONE_MOUNT_DIR}/ is mounted with: $IS_MOUNTED" "warn"
+	doMsg "${CLONE_MOUNT_DIR}/ is mounted with: $IS_MOUNTED" "warn-no-abort"
 	readUserUnmount $CLONE_MOUNT_DIR
 fi
 if [ -d $CLONE_MOUNT_DIR ]; then
 	IS_EMPTY=`ls -A $CLONE_MOUNT_DIR`
 	if [ "$IS_EMPTY" != "" ]; then
-		doError "${CLONE_MOUNT_DIR}/ is not empty - contents could be erased if you choose to continue." "warn"
+		doMsg "${CLONE_MOUNT_DIR}/ is not empty - contents could be erased if you choose to continue." "warn"
 	fi
 fi
 IS_MOUNTED=`fgrep "\b$SRC_MOUNT_DIR\b" /etc/mtab | awk '{print $1}'`
 if [ "$IS_MOUNTED" != "" ]; then
-	doError "${SRC_MOUNT_DIR}/ is mounted with: $IS_MOUNTED" "warn"
+	doMsg "${SRC_MOUNT_DIR}/ is mounted with: $IS_MOUNTED" "warn-no-abort"
 	readUserUnmount $SRC_MOUNT_DIR
 fi
 if [ -d $SRC_MOUNT_DIR ]; then
 	IS_EMPTY=`ls -A $SRC_MOUNT_DIR`
 	if [ "$IS_EMPTY" != "" ]; then
-		doError "${SRC_MOUNT_DIR}/ is not empty." "warn"
+		doMsg "${SRC_MOUNT_DIR}/ is not empty." "warn"
 	fi
 fi
 
@@ -471,7 +511,7 @@ while read -r DEST_PART; do
 	DEST_PART_MTAB=`cat /etc/mtab | fgrep $DEST_PART_DEV`
 	if [ ! "$DEST_PART_MTAB" == "" ]; then
 		DEST_PART_MOUNT=`echo $DEST_PART_MTAB | awk '{print $2}'`
-		doError "destination partition $DEST_PART_DEV is currently mounted to $DEST_PART_MOUNT" "warn"
+		doMsg "destination partition $DEST_PART_DEV is currently mounted to $DEST_PART_MOUNT" "warn-no-abort"
 		readUserUnmount $DEST_PART_MOUNT
 	fi
 done <<< "$DEST_PARTS"
@@ -505,9 +545,9 @@ else
 fi
 if [ $DEST_DISK_READY = false -a $FORCE_DEST_DISK_INIT = false ]; then
 	if [ $FORCE_DEST_DISK_INIT = true ]; then
-		doError "the source & destination disk partition structures do not match.\nThe destination disk will be formatted to match the source, all existing data on it will be lost." "info"
+		doMsg "the source & destination disk partition structures do not match.\nThe destination disk will be formatted to match the source, all existing data on it will be lost." "info"
 	else
-		doError "the source & destination disk partition structures do not match.\nRe-run with --init-destination to remove this warning." "warn"
+		doMsg "the source & destination disk partition structures do not match.\nRe-run with --init-destination to remove this warning." "warn"
 	fi
 fi
 
@@ -520,11 +560,11 @@ if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 		SRC_LARGER_THAN_DEST=true
 		if [ $FORCE_DEST_DISK_INIT = true ]; then
 			# init-ing disk, so add resize flag and show info + warning
-			doError "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nClonePi will attempt to resize the last partition on the destination,\nbut this may result in a partition too small to take all of the content." "warn"
+			doMsg "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nClonePi will attempt to resize the last partition on the destination,\nbut this may result in a partition too small to take all of the content." "warn"
 			RESIZE_DEST_DISK=true
 		else
 			# not init-ing disk, so only show info
-			doError "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nThe source content may not fit on the destination." "warn"
+			doMsg "destination disk $DEST_DISK is smaller than the source disk ${SRC_DISK}\nThe source content may not fit on the destination." "warn"
 		fi
 	else
 		# src < dest
@@ -545,7 +585,7 @@ if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 			fi
 		fi
 		if [ $SHOW_INFO = true ]; then
-			doError "destination disk $DEST_DISK is larger than the source disk ${SRC_DISK}\nYou can use --fill-destination to resize the last partition to fill the entire disk." "info"
+			doMsg "destination disk $DEST_DISK is larger than the source disk ${SRC_DISK}\nYou can use --fill-destination to resize the last partition to fill the entire disk." "info"
 		fi
 	fi
 fi
@@ -559,12 +599,8 @@ fi
 # .. get currently mounted src partitions & devices
 DEST_DEVS=""
 DEST_SYNC_DIRS=""
-# this was a very vexxing problem - `mount` keeps reporting the cloned disk's /dev/sdb2 partition as mounted to the root dir
-# this obviously isnt the case! mount is getting confused becasue the clone partition has the same PARTUUID
-# refreshing the partition table twice(!) seemed to resolve
-# TODO: may need to consider changing the clone's PARTUUID for duration of clonepi process and changing back at end - just so we can rely on `mount` output
-partprobe $SRC_DISK
-partprobe $SRC_DISK
+# refresh device before probing
+refreshDevice $SRC_DISK
 SRC_DEVS=`mount | grep $SRC_DISK | awk '{print $1}'`
 SRC_SYNC_DIRS=`mount | grep $SRC_DISK | awk '{print $3}'`
 # .. and generate their corresponding dest mount points & devices
@@ -628,78 +664,77 @@ fi
 #################################################
 
 if [ $WITH_WARNINGS = true ]; then
-	echo "Pre-flight checks completed with WARNINGS, proceed with caution"
+	doMsg "Pre-flight checks completed with WARNINGS, proceed with caution" "msg"
 else
-	echo "Pre-flight checks completed OK"
+	doMsg "Pre-flight checks completed OK" "msg"
 fi
-echo "The following actions will be taken..."
-echo
+doMsg "the following actions will be taken..." "info"
 TASK=1
 
 if [ $FORCE_DEST_DISK_INIT = true -o $DEST_DISK_READY = false ]; then
-	echo "${TASK}) Destinaton disk ${DEST_DISK} will be initialised to match the source disk structure"
+	doMsg "${TASK}) destinaton disk ${DEST_DISK} will be initialised to match the source disk structure" "info"
 	TASK=$((TASK+1))
 fi
 
 if [ $RESIZE_DEST_DISK = true ]; then
-	echo "${TASK}) The last partition on $DEST_DISK will be resized to fill the disk"
+	doMsg "${TASK}) the last partition on $DEST_DISK will be resized to fill the disk" "info"
 	TASK=$((TASK+1))
 fi
 
 if [ ! "$UNMOUNTED_SRC_PARTS" = "" ]; then
-	echo "${TASK}) Currently unmounted source disk partitions will be mounted inside ${SRC_MOUNT_DIR}/:"
+	doMsg "${TASK}) currently unmounted source disk partitions will be mounted inside ${SRC_MOUNT_DIR}/:" "info"
 	while read -r UNMOUNTED_SRC_PART; do
-		echo "   $UNMOUNTED_SRC_PART"
+		doMsg "   $UNMOUNTED_SRC_PART" "info"
 	done <<< "$UNMOUNTED_SRC_PARTS"
 	TASK=$((TASK+1))
 fi
 
-echo "${TASK}) Destination disk partitions will be mounted inside ${CLONE_MOUNT_DIR}/:"
+doMsg "${TASK}) destination disk partitions will be mounted inside ${CLONE_MOUNT_DIR}/:" "info"
 while read -r DEST_DEV; do
-	echo "   $DEST_DEV"
+	doMsg "   $DEST_DEV" "info"
 done <<< "$DEST_DEVS"
 TASK=$((TASK+1))
 
 if [ ! -z $HOOK_PRE_SYNC -a -f $HOOK_PRE_SYNC ]; then
-	echo "${TASK}) Pre-sync script at $HOOK_PRE_SYNC will be run"
+	doMsg "${TASK}) pre-sync script at $HOOK_PRE_SYNC will be run" "info"
 	TASK=$((TASK+1))
 fi
 
-echo "${TASK}) Filesystems will be synced:"
+doMsg "${TASK}) filesystems will be synced:" "info"
 CNT=1
 while read -r SRC_SYNC_DIR; do
 	DEST_SYNC_DIR=`sed -n ${CNT}p <<< "$DEST_SYNC_DIRS"`
-	echo "   $SRC_SYNC_DIR  -->  $DEST_SYNC_DIR"
+	doMsg "   $SRC_SYNC_DIR  -->  $DEST_SYNC_DIR" "info"
 	CNT=$((CNT+1))
 done <<< "$SRC_SYNC_DIRS"
 TASK=$((TASK+1))
 
 if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
-	echo "${TASK}) Post-sync script at $HOOK_POST_SYNC will be run"
+	doMsg "${TASK}) post-sync script at $HOOK_POST_SYNC will be run" "info"
 	TASK=$((TASK+1))
 fi
 
 if [ $WAIT_BEFORE_UNMOUNT = true ]; then
-	echo "${TASK}) Wait for user confirmation before continuing to..."
+	doMsg "${TASK}) wait for user confirmation before continuing to..." "info"
 	TASK=$((TASK+1))
 fi
 
-echo "${TASK}) Cleanup - source/destination disk partitions & dirs will be unmounted & removed"
+doMsg "${TASK}) cleanup - source/destination disk partitions & dirs will be unmounted & removed" "info"
 TASK=$((TASK+1))
 
-echo
+# get confirmation
 if [ $SCRIPT_MODE = true ]; then
 	UI="y"
 else
+	echo
 	read -p "Do you wish to continue (yes|no)? " UI < /dev/tty
 fi
 if [ "$UI" = "y" -o "$UI" = "yes" ]; then
 	START_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
 	START_TIMER=`date '+%s'`
-	echo "User confirmed, starting clone process : $START_TIME"
-	echo
+	doMsg "User confirmed, starting clone process : $START_TIME" "msg"
 else
-	doError "clone process cancelled." "user"
+	doMsg "Clone process cancelled." "user-abort"
 fi
 
 
@@ -720,23 +755,22 @@ if [ $FORCE_DEST_DISK_INIT = true -o $DEST_DISK_READY = false ]; then
 	# add 1MB to make sure we dd some way into it
 	DD_COUNT=`expr $LAST_PART_START_M + 1`
 	# partial dd clone of src disk -> dest disk
-	echo "Initialising $DEST_DISK, this may take some time..."
-	echo
-	echo "Setting up destination partition structure, copying ${DD_COUNT}MB..."
+	doMsg "initialising $DEST_DISK, this may take some time..." "info"
+	doMsg "setting up destination partition structure, copying ${DD_COUNT}MB..." "info"
 	dd if=$SRC_DISK of=$DEST_DISK bs=1M count=$DD_COUNT
 	if [ ! "$?" = 0 ]; then
-		doError "$DEST_DISK partial image did not complete."
+		doMsg "$DEST_DISK partial image did not complete." "error"
 	fi
 	# cleanup partition - to avoid volume not properly unmounted warnings
 	LAST_PART_DEST_DEV="${DEST_DISK}${LAST_PART_NUM}"
-	echo "Running filesystem repair on last partition ${LAST_PART_DEST_DEV}"
+	doMsg "running filesystem repair on last partition ${LAST_PART_DEST_DEV}" "info"
 	fsck -p $LAST_PART_DEST_DEV &> /dev/null	# discard errors
 
 	if [ $RESIZE_DEST_DISK = true ]; then
 		if [ $SRC_LARGER_THAN_DEST = true ]; then
 			# resize down - parted wont run (Error: Can't have a partition outside the disk!) until the MBR is fixed up
 			# using this approach: http://gparted.org/h2-fix-msdos-pt.php
-			echo "Fixing MBR on ${DEST_DISK_NAME}..."
+			doMsg "Fixing MBR on ${DEST_DISK_NAME}..." "info"
 			# get current MBR
 			MBR=`sfdisk -d $DEST_DISK`
 			# change partition size(s) so they are within DEST_SECTORS
@@ -749,7 +783,7 @@ if [ $FORCE_DEST_DISK_INIT = true -o $DEST_DISK_READY = false ]; then
 				MBR_SEARCH_TERM=`echo "$MBR" | grep "^${EXT_PART}" | cut -f 2 -d, | xargs`
 				MBR_REPLACE_TERM="size= ${EXT_PART_NEW_SIZE}"
 				MBR=`echo "$MBR" | sed "/^${EXT_PART_ESCAPED}/s/${MBR_SEARCH_TERM}/${MBR_REPLACE_TERM}/"`
-				echo "...modifying extended partition ${EXT_PART}..."
+				doMsg "...modifying extended partition ${EXT_PART}..." "info"
 			fi
 			# modify last partition
 			LAST_PART_ESCAPED=$(echo "$LAST_PART_DEST_DEV" | sed 's/\//\\\//g')
@@ -758,30 +792,30 @@ if [ $FORCE_DEST_DISK_INIT = true -o $DEST_DISK_READY = false ]; then
 			MBR_SEARCH_TERM=`echo "$MBR" | grep "^${LAST_PART_DEST_DEV}" | cut -f 2 -d, | xargs`
 			MBR_REPLACE_TERM="size= ${LAST_PART_NEW_SIZE}"
 			MBR=`echo "$MBR" | sed "/^${LAST_PART_ESCAPED}/s/${MBR_SEARCH_TERM}/${MBR_REPLACE_TERM}/"`
-			echo "...modifying last partition ${LAST_PART_DEST_DEV}..."
+			doMsg "...modifying last partition ${LAST_PART_DEST_DEV}..." "info"
 			# write MBR back to disk
 			# NB: possible to get resource busy error from sfdisk, even tho it updates succesfully
 			# a brief pause the update seems to resolve - but it may be better to discard error and assume OK
 			sleep 1
 			sfdisk --force $DEST_DISK <<< "$MBR"
 			if [ "$?" = 0 ]; then
-				echo "... updated MBR OK"
+				doMsg "... updated MBR OK" "info"
 			else
-				doError "there was a problem updating the MBR on $DEST_DISK"
+				doMsg "there was a problem updating the MBR on $DEST_DISK" "error"
 			fi
 			# inform OS of partition table changes
-			partprobe $DEST_DISK
+			refreshDevice $DEST_DISK
 		else
 			# resize up
 			LAST_PART_TYPE=`parted -ms $SRC_DISK p | tail -1 | cut -f 5 -d:`
-			echo "Resizing last partition $LAST_PART_DEST_DEV to use remaining available space on ${DEST_DISK_NAME}..."
+			doMsg "resizing last partition $LAST_PART_DEST_DEV to use remaining available space on ${DEST_DISK_NAME}..." "info"
 			if [ ! "$SRC_EXTENDED_PART_NUM" = 0 ]; then
 				# resize the extended partition
 				parted $DEST_DISK -ms unit s resizepart $SRC_EXTENDED_PART_NUM 100%
 				if [ "$?" = 0 ]; then
-					echo "...extended partition $SRC_EXTENDED_PART_NUM resized..."
+					doMsg "...extended partition $SRC_EXTENDED_PART_NUM resized..." "info"
 				else
-					doError "resize of extended partition $SRC_EXTENDED_PART_NUM failed."
+					doMsg "resize of extended partition $SRC_EXTENDED_PART_NUM failed." "error"
 				fi
 			fi
 			# get start of dest disk's final partition - in sectors
@@ -795,50 +829,48 @@ if [ $FORCE_DEST_DISK_INIT = true -o $DEST_DISK_READY = false ]; then
 			fi
 			if [ "$?" = 0 ]; then
 				# get start of dest disk's final partition - in sectors
-				echo "...resize of $LAST_PART_DEST_DEV completed OK"
+				doMsg "...resize of $LAST_PART_DEST_DEV completed OK" "info"
 			else
-				doError "resize of ${LAST_PART_DEST_DEV} failed."
+				doMsg "resize of ${LAST_PART_DEST_DEV} failed." "error"
 			fi
 		fi
 	fi
 
 	# rebuild last partition filesystem
 	LAST_PART_TYPE=`parted -ms $SRC_DISK p | tail -1 | cut -f 5 -d:`
-	echo "Rebuilding $LAST_PART_TYPE filesystem on last partition ${LAST_PART_DEST_DEV}..."
+	doMsg "rebuilding $LAST_PART_TYPE filesystem on last partition ${LAST_PART_DEST_DEV}..." "info"
 	mkfs -t $LAST_PART_TYPE -F $LAST_PART_DEST_DEV
 	if [ "$?" = 0 ]; then
-		echo "...filesystem rebuild completed OK"
+		doMsg "...filesystem rebuild completed OK" "info"
 	else
-		doError "$LAST_PART_TYPE filesystem rebuild on ${LAST_PART_DEST_DEV} failed."
+		doMsg "$LAST_PART_TYPE filesystem rebuild on ${LAST_PART_DEST_DEV} failed." "error"
 	fi
 
 	# inform OS of partiton table changes
-	partprobe $DEST_DISK
+	refreshDevice $DEST_DISK
 
-	echo
-	echo "$DEST_DISK initialised OK"
-	echo
+	doMsg "$DEST_DISK initialised OK" "info"
 fi
 
 #
 # setup sync dirs
 #
-echo "Setting up source and destination directories and mounts..."
+doMsg "setting up source and destination directories and mounts..." "info"
 # create SRC_MOUNT_DIR & partition mount dirs
 if [ "$UNMOUNTED_SRC_PARTS" != "" ]; then
 	if [ ! -d $SRC_MOUNT_DIR ]; then
 		if mkdir $SRC_MOUNT_DIR; then
-			echo "Created source dir at $SRC_MOUNT_DIR"
+			doMsg "created source dir at $SRC_MOUNT_DIR" "info"
 		else
-			doError "could not create source dir at ${SRC_MOUNT_DIR}"
+			doMsg "could not create source dir at ${SRC_MOUNT_DIR}" "error"
 		fi
 	fi
 	while read -r SRC_SYNC_DIR; do
 		if [ ! -d $SRC_SYNC_DIR ]; then
 			if mkdir $SRC_SYNC_DIR; then
-				echo "Created source partition dir at ${SRC_SYNC_DIR}"
+				doMsg "created source partition dir at ${SRC_SYNC_DIR}" "info"
 			else
-				doError "could not create source partition dir at ${SRC_SYNC_DIR}"
+				doMsg "could not create source partition dir at ${SRC_SYNC_DIR}" "error"
 			fi
 		fi
 	done <<< "$SRC_SYNC_DIRS"
@@ -846,24 +878,23 @@ fi
 # create CLONE_MOUNT_DIR & partition mount dirs
 if [ ! -d $CLONE_MOUNT_DIR ]; then
 	if mkdir $CLONE_MOUNT_DIR; then
-		echo "Created clone dir at $CLONE_MOUNT_DIR"
+		doMsg "created clone dir at $CLONE_MOUNT_DIR" "info"
 	else
-		doError "could not create clone dir at ${CLONE_MOUNT_DIR}"
+		doMsg "could not create clone dir at ${CLONE_MOUNT_DIR}" "error"
 	fi
 fi
 while read -r DEST_SYNC_DIR; do
 	if [ ! -d $DEST_SYNC_DIR ]; then
 		if mkdir $DEST_SYNC_DIR; then
-			echo "Created clone partition dir at ${DEST_SYNC_DIR}"
+			doMsg "created clone partition dir at ${DEST_SYNC_DIR}" "info"
 		else
-			doError "could not create clone partition dir at ${DEST_SYNC_DIR}"
+			doMsg "could not create clone partition dir at ${DEST_SYNC_DIR}" "error"
 		fi
 	fi
 done <<< "$DEST_SYNC_DIRS"
 # mount source partitions
 # refresh source disk partition tables before using mount
-partprobe $SRC_DISK
-partprobe $SRC_DISK     # !
+refreshDevice $SRC_DISK
 CNT=1
 UNMOUNT_SRC_DIRS=""
 if [ "$SRC_SYNC_DIRS" != "" ]; then
@@ -872,10 +903,10 @@ if [ "$SRC_SYNC_DIRS" != "" ]; then
 		ALREADY_MOUNTED=`mount | grep "$SRC_DEV"`
 		if [ "$ALREADY_MOUNTED" = "" ]; then
 			if mount $SRC_DEV $SRC_SYNC_DIR; then
-				echo "Mounted $SRC_DEV to $SRC_SYNC_DIR"
+				doMsg "mounted $SRC_DEV to $SRC_SYNC_DIR" "info"
 				UNMOUNT_SRC_DIRS="${UNMOUNT_SRC_DIRS}${SRC_SYNC_DIR}"$'\n'
 			else
-				doError "could not mount ${SRC_DEV} to ${SRC_SYNC_DIR}"
+				doMsg "could not mount ${SRC_DEV} to ${SRC_SYNC_DIR}" "error"
 			fi
 		fi
 		CNT=$((CNT+1))
@@ -889,9 +920,9 @@ while read -r DEST_SYNC_DIR; do
 	ALREADY_MOUNTED=`mount | grep "$DEST_DEV"`
 	if [ "$ALREADY_MOUNTED" = "" ]; then
 		if mount $DEST_DEV $DEST_SYNC_DIR; then
-			echo "Mounted $DEST_DEV to $DEST_SYNC_DIR"
+			doMsg "mounted $DEST_DEV to $DEST_SYNC_DIR" "info"
 		else
-			doError "could not mount ${DEST_DEV} to ${DEST_SYNC_DIR}"
+			doMsg "could not mount ${DEST_DEV} to ${DEST_SYNC_DIR}" "error"
 		fi
 	fi
 	CNT=$((CNT+1))
@@ -901,18 +932,17 @@ done <<< "$DEST_SYNC_DIRS"
 # pre-sync script hook
 #
 if [ ! -z $HOOK_PRE_SYNC -a -f $HOOK_PRE_SYNC ]; then
-	echo
-	echo "Running pre-sync script at $HOOK_PRE_SYNC"
+	doMsg "running pre-sync script at $HOOK_PRE_SYNC" "info"
 	# run as subprocess, so it can access all clonepi variables and make controlled exit
 	(. $HOOK_PRE_SYNC)
 	EXIT_CODE=$?
 	if [ $EXIT_CODE != 0 ]; then
 		if [ $EXIT_CODE = 2 ]; then
-			doError "pre-sync script exited with error code: $EXIT_CODE" "info"
+			doMsg "pre-sync script exited with error code: $EXIT_CODE" "info"
 		else
-			doError "pre-sync script exited with error code: $EXIT_CODE" "error-report"
+			doMsg "pre-sync script exited with error code: $EXIT_CODE" "error-report"
 			doCleanup
-			doError "pre-sync script caused abort"
+			doMsg "pre-sync script caused abort" "error"
 		fi
 	fi
 fi
@@ -920,13 +950,11 @@ fi
 #
 # rsync filesystems
 #
-echo
-echo "Starting Filesystem sync processes, this may take some time..."
+doMsg "starting filesystem sync processes, this may take some time..." "info"
 CNT=1
 while read -r SRC_SYNC_DIR; do
 	DEST_SYNC_DIR=`sed -n ${CNT}p <<< "$DEST_SYNC_DIRS"`
-	echo
-	echo "Syncing: $SRC_SYNC_DIR  -->  $DEST_SYNC_DIR"
+	doMsg "syncing: $SRC_SYNC_DIR  -->  $DEST_SYNC_DIR" "info"
 
 	# apply correct excludes for the sync
 	EXCLUDES=""
@@ -934,7 +962,7 @@ while read -r SRC_SYNC_DIR; do
 
 	# current OS disk
 	if [ "$SRC_SYNC_DIR" = "/" ]; then
-		echo "This is the running root directory, applying OS excludes"
+		doMsg "this is the running root directory, applying OS excludes" "info"
 		EXCLUDES_FILE="--exclude-from=${OS_EXCLUDES_FILE}"
 		EXCLUDES="--exclude=${SRC_MOUNT_DIR} --exclude=${CLONE_MOUNT_DIR}"
 		# exclude dphys swapfile if using one
@@ -956,29 +984,27 @@ while read -r SRC_SYNC_DIR; do
 	fi
 	SRC_SYNC_DIR=${SRC_SYNC_DIR%/}	# remove trailing slash if exists (will be re-added below)
 	DEST_SYNC_DIR=${DEST_SYNC_DIR%/}
-	echo "rsync ${RSYNC_OPTIONS}${EXCLUDES}${EXCLUDES_FILE} ${SRC_SYNC_DIR}/ ${DEST_SYNC_DIR}/"
+	doMsg "rsync ${RSYNC_OPTIONS}${EXCLUDES}${EXCLUDES_FILE} ${SRC_SYNC_DIR}/ ${DEST_SYNC_DIR}/" "info"
 	rsync ${RSYNC_OPTIONS}${EXCLUDES}${EXCLUDES_FILE} ${SRC_SYNC_DIR}/ ${DEST_SYNC_DIR}/
 
 	CNT=$((CNT+1))
 done <<< "$SRC_SYNC_DIRS"
-echo
-echo "...all sync processes finished OK"
+doMsg "...all sync processes finished OK" "info"
 
 #
 # post-sync script hook
 #
 if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
-	echo
-	echo "Running post-sync script at $HOOK_POST_SYNC"
+	doMsg "Running post-sync script at $HOOK_POST_SYNC" "info"
 	(. $HOOK_POST_SYNC)
 	EXIT_CODE=$?
 	if [ $EXIT_CODE != 0 ]; then
 		if [ $EXIT_CODE = 2 ]; then
-			doError "post-sync script exited with error code: $EXIT_CODE" "info"
+			doMsg "post-sync script exited with error code: $EXIT_CODE" "info"
 		else
-			doError "post-sync script exited with error code: $EXIT_CODE" "error-report"
+			doMsg "post-sync script exited with error code: $EXIT_CODE" "error-report"
 			doCleanup
-			doError "post-sync script caused abort"
+			doMsg "post-sync script caused abort" "error"
 		fi
 	fi
 fi
@@ -991,19 +1017,16 @@ fi
 
 END_TIMER=`date '+%s'`
 PROCESS_TIME=$((END_TIMER - START_TIMER))
-echo
-echo "Total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s"
-echo
+doMsg "total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s" "info"
 
 # may wait for user confirm (set in conf)
 doCleanup
 
 END_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
-echo
 if [ $WITH_WARNINGS = true ]; then
-	echo "ClonePi finished succesfully but with WARNINGS : $END_TIME"
+	doMsg "ClonePi finished succesfully but with WARNINGS : $END_TIME" "msg"
 else
-	echo "ClonePi finished succesfully : $END_TIME"
+	doMsg "ClonePi finished succesfully : $END_TIME" "msg"
 fi
 echo
 exit 0

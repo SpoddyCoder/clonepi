@@ -1,3 +1,18 @@
+## 1.4.1 (7th July 2018)
+
+FEATURES:
+
+ - quiet mode, reduce run output to important messages & errors only
+
+IMPROVEMENTS:
+
+ - run output
+
+BUG FIXES:
+
+ - occasional fsyncing i/o errors when querying file image
+
+
 ## 1.4.0 (7th July 2018)
 
 FEATURES:

@@ -69,7 +69,7 @@ $ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 + `--rsync-verbose` list all files as they are rsynced.
 + `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
-+ `--ignore warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
++ `--ignore-warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
 + `--quiet` don't show info, show only warnings & errors.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 

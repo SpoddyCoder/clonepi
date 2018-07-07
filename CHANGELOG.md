@@ -1,3 +1,16 @@
+## 1.4.3 (7th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - include device/file being cloned to in --script mode output - v useful for cron logs!
+
+BUG FIXES:
+
+ - README typo in --ignore-warnings switch name
+
+
 ## 1.4.2 (7th July 2018)
 
 FEATURES:

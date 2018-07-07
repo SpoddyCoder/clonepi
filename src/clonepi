@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.4.2
+VER=1.4.3
 
 
 
@@ -317,6 +317,8 @@ if [ $SCRIPT_MODE = true ]; then
         else
 		doMsg "running with --ignore-warnings. All user input assumed yes, regardless of warnings." "warn"
 	fi
+	# when running without a user, confirm the destination (useful for looking at logs later)
+	doMsg "Cloning to : $DEST_DISK" "msg"
 fi
 # check if PATH has sbin - if not use the EXPORT_PATH from conf
 # (because cron generally has a limited environment setup - this makes invoking ClonePi from cron easier)

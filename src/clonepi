@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.4.3
+VER=1.5.0
 
 
 
@@ -26,14 +26,16 @@ usageInfo()
 	echo "Options:"
 	echo "   --help|-h              usage info"
 	echo "   --version|-v           version info"
+	echo "   --quiet|-q             only output warnings and errors"
 	echo "   --init-destination     force initialisation of the destination disk"
 	echo "   --fill-destination     resize last partition on destination to fill disk"
+	echo "   --script               run in non-interactive mode"
+	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
+	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
+	echo "   --hook-pre-sync	script to be run prior to main sync process"
+	echo "   --hook-post-sync	script to be run after main sync process, before unmount"
 	echo "   --rsync-verbose        list files as they are rsynced"
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
-	echo "   --script               run in non-interactive mode"
-	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
-	echo "   --quiet                only output warnings and errors"
-	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
 	echo
 	echo "Config:"
 	while read -r CONF_FILE; do
@@ -236,6 +238,8 @@ WITH_WARNINGS=false
 EXIT_ON_WARNING=true
 WAIT_BEFORE_UNMOUNT=false
 QUIET_MODE=false
+HOOK_PRE_SYNC=""
+HOOK_POST_SYNC=""
 # source disk
 SRC_DISK_PART_PREFIX="p"
 SRC_SECTORS=""
@@ -265,6 +269,9 @@ while [ "$1" ]; do
 			usageInfo "version-only"
 			exit 0
 			;;
+		--quiet|q)
+			QUIET_MODE=true
+			;;
 		--init-destination)
 			FORCE_DEST_DISK_INIT=true
 			;;
@@ -284,12 +291,15 @@ while [ "$1" ]; do
 		--ignore-warnings)
                         EXIT_ON_WARNING=false
                         ;;
-		--quiet)
-			QUIET_MODE=true
-			;;
 		--wait-before-unmount)
                         WAIT_BEFORE_UNMOUNT=true
                         ;;
+		--hook-pre-sync=*)
+			HOOK_PRE_SYNC=`echo "$1" | cut -f2 -d'='`
+			;;
+		--hook-post-sync=*)
+			HOOK_POST_SYNC=`echo "$1" | cut -f2 -d'='`
+			;;
 		*)
 			if [ "$DEST_DISK" != "" ]; then
 				usageInfo
@@ -589,6 +599,14 @@ if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 			doMsg "destination disk $DEST_DISK is larger than the source disk ${SRC_DISK}\nYou can use --fill-destination to resize the last partition to fill the entire disk." "info"
 		fi
 	fi
+fi
+
+# check pre & post sync hooks exist if specified
+if [ "$HOOK_PRE_SYNC" != "" -a ! -f $HOOK_PRE_SYNC ]; then
+	doMsg "the pre-sync script : $HOOK_PRE_SYNC does not exist" "warn"
+fi
+if [ "$HOOK_POST_SYNC" != "" -a ! -f $HOOK_POST_SYNC ]; then
+        doMsg "the post-sync script : $HOOK_POST_SYNC does not exist" "warn"
 fi
 
 #

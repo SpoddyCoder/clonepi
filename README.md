@@ -64,14 +64,16 @@ $ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
 
 + `--help` or `-h` show usage info
 + `--version` or `-v` show ClonePi version
++ `--quiet` or `-q` don't show info, show only warnings & errors.
 + `--init-destination` force initialisation of the destination disk. This will erase all of its contents.
 + `--fill-destination` fill destination disk. Implies `--init-destination`. Will attempt to resize the last partition to fill the destination disk. If the source disk is larger than the destination it will attempt to resize down, but this may or may not leave room for the content.
 + `--rsync-verbose` list all files as they are rsynced.
 + `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore-warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
-+ `--quiet` don't show info, show only warnings & errors.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
++ `--hook-pre-sync` specify a script to be run prior to main sync process. See script hooks section for more detail.
++ `--hook-post-sync` specify a script to be run post the main sync process, but before clone is unmounted
 
 ### Modes of Operation
 
@@ -119,18 +121,12 @@ Some typical example use cases follow
 
 1. Mount NAS to the Pi (see google for instructions, inside /mnt/ is normal)
 1. Initialise file + perform first time copy, eg: `sudo clonepi /mnt/nas/system-backups/my-pi.img --init-destination`
-1. Perform incremental updates once a week, automatically via cron
-```
-$ sudo nano crontab -e
-```
+1. Perform incremental updates once a week, automatically via cron `sudo nano crontab -e`
 1. Add the following line to run clonepi at midnight on sunday and redirect the output to a log file
 ```
-00 00 1 * * /usr/local/sbin/clonepi /mnt/nas/system-backups/my-pi.img --script --quiet >> /var/log/clonepi.log 2>&1
+00 00 * * 0 /usr/local/sbin/clonepi /mnt/nas/system-backups/my-pi.img --script --quiet >> /var/log/clonepi.log 2>&1
 ```
-1. Read the last 50 lines of the log file at any time to ensure its running properly
-```
-$ sudo tail -50 /var/log/clonepi.log
-```
+1. Read the last 50 lines of the log file at any time to ensure its running properly `sudo tail -50 /var/log/clonepi.log`
 
 ### Cloning SD card for other PI's
 
@@ -151,7 +147,17 @@ Notes on each of the configurable items are included in the files.
 + **raspbian.excludes** - files/directories to be excluded from the running OS sync
 
 #### Script Hooks
-Script hooks allow you to inject your own code at specific points during the ClonePi process. Typical use cases;
+Script hooks allow you to inject your own code at specific points during the ClonePi process
+```
+$ sudo clonepi /dev/sdb --hook-pre-sync=/etc/clonepi/stop-services.sh --hook-post-sync=/etc/clonepi/start-services.sh
+```
+
+Currently there are two hooks available
+
++ `--hook-pre-sync` runs after the clone disk/file has been setup/initialised, but before the main rsync process
++ `--hook-post-sync` runs after the main rsync process has finished, but before the clone disk/file is unmounted
+
+Typical use cases;
 
 + Stop services/apps before starting sync and restarting them after sync finishes.
 + Prepare the source disk before syncing.
@@ -164,10 +170,15 @@ You can optionally end your scripts with an exit code and ClonePi will take the 
 + **exit 1** and clonepi will **output an error and abort**
 + **exit 2** and clonepi will **output info and continue**
 
+Currently there are two hooks;
+
++ `--hook-pre-sync` runs after the clone disk/file has been setup/initialised, but before the main rsync process
++ `--hook-post-sync` runs after the main rsync process has finished, but before the clone disk/file is unmounted
+
 
 ## Further Help & Info
 
-#### Some hints for the less experienced
+### Some hints for the less experienced
 You will need to know the device name of your SD card. ClonePi cannot determine this for you, but run the following command to identify all attached disks...
 ```
 $ sudo fdisk -l
@@ -180,7 +191,7 @@ A couple of tips and a couple warnings when identifying your device;
 1. depending on the system setup, the device identifier **can change** between reboots, so you should **always** confirm the correct disk before running ClonePi
 
 
-#### Some hints for the more experienced
+### Some hints for the more experienced
 1. If you are running ClonePi via cron, **always use the UUID** to target the drive, see hint above for reason why
 1. To find your device UUID, use: `sudo blkid`
 1. The script hooks are your friend

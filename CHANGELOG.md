@@ -1,3 +1,14 @@
+## 1.5.0 (8th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - moved pre & post sync hooks to switches, to allow for more flexible use (potential breaking change)
+
+BUG FIXES:
+
+
 ## 1.4.3 (7th July 2018)
 
 FEATURES:

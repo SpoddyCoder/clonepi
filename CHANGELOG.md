@@ -1,3 +1,14 @@
+## 1.5.3 (14th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - formatting on help
+
+BUG FIXES:
+
+
 ## 1.5.2 (14th July 2018)
 
 FEATURES:

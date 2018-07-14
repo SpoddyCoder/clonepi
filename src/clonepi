@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.5.2
+VER=1.5.3
 
 
 
@@ -32,8 +32,8 @@ usageInfo()
 	echo "   --script               run in non-interactive mode"
 	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
 	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
-	echo "   --hook-pre-sync	script to be run prior to main sync process"
-	echo "   --hook-post-sync	script to be run after main sync process, before unmount"
+	echo "   --hook-pre-sync        script to be run prior to main sync process"
+	echo "   --hook-post-sync       script to be run after main sync process, before unmount"
 	echo "   --rsync-verbose        list files as they are rsynced"
 	echo "   --rsync-dry-run        run rsync in dry-run mode"
 	echo

@@ -1,3 +1,17 @@
+## 1.5.2 (14th July 2018)
+
+FEATURES:
+
+ - installer now checks config files versions and backs-up + updates them as necessary
+
+IMPROVEMENTS:
+
+ - installer outputs commands for installing missing dependencies
+ - README
+
+BUG FIXES:
+
+
 ## 1.5.1 (14th July 2018)
 
 FEATURES:

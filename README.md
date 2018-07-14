@@ -1,6 +1,6 @@
 # ClonePi
 
-ClonePi will clone a running Raspberry Pi to a destination SD card/device or a file. Features...
+ClonePi will clone a running Raspberry Pi running a Debian based system (Raspbian tested, may be tweaked to work with others) to a destination SD card/device or a file. Features...
 
 + Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
 + Incremental on-the-fly cloning
@@ -12,29 +12,25 @@ ClonePi will clone a running Raspberry Pi to a destination SD card/device or a f
 + Optional unattended operation, suitable for cron use
 
 
-## Prerequisites
-ClonePi works on Raspberry Pi's running a Debian based OS (Raspbian tested). It requires rsync & dosfstools - these are normally installed but if not run the following...
+## Installing / Updating / Removing
+
+Clone this repo to your Raspberry Pi (or download the zip). Run the installer as root
 ```
-$ sudo apt-get update
-$ sudo apt-get install rsync
-$ sudo apt-get install dosfstools
+git clone https://github.com/SpoddyCoder/clonepi.git
+cd clonepi
+sudo ./install.sh
 ```
 
-
-## Installing / Updating
-
-Clone this repo to your Raspberry Pi (or download the zip). Run the installer as root...
+Simply re-run the installer at any time to update to latest version
 ```
-$ git clone https://github.com/SpoddyCoder/clonepi.git
-$ cd clonepi
-$ sudo ./install.sh
+cd clonepi
+sudo ./install.sh
 ```
 
-Simply re-run the installer at any time to update to latest version. To completely remove ClonePi and config files, run the uninstaller...
+To completely remove ClonePi and config files, run the uninstaller
 ```
-$ sudo ./uninstall.sh
+sudo ./uninstall.sh
 ```
-
 A copy of the config files is placed in `/tmp/clonepi-bak/` in case you need to restore them.
 
 
@@ -47,17 +43,17 @@ sudo clonepi [device|UUID|file] [options...]
 
 ClonePi can clone to a device using standard device identifier
 ```
-$ sudo clonepi /dev/sdb
+sudo clonepi /dev/sdb
 ```
 
 Or to a device using its UUID
 ```
-$ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
+sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a
 ```
 
-Or to an image file. This requires as much space as the source disk (placed on a NAS or external drive)
+Or to an image file. This requires as much space as the source disk (place on a NAS or external drive)
 ```
-$ sudo clonepi /mnt/nas/pi-system-backups/pi-plex.img
+sudo clonepi /mnt/nas/pi-system-backups/my-pi.img
 ```
 
 ### Options 
@@ -86,7 +82,7 @@ It will format the destination card/file to match the source disk partition stru
 This can be expected to take a while.
 Example:
 ```
-$ sudo clonepi /dev/sdc --init-destination
+sudo clonepi /dev/sdc --init-destination
 ```
 
 #### Incremental Copy
@@ -95,7 +91,7 @@ It will sync files that have changed since last sync.
 This will be much quicker than full init + copy.
 Example:
 ```
-$ sudo clonepi /dev/sdc
+sudo clonepi /dev/sdc
 ```
 
 #### Non-interactive Mode
@@ -104,7 +100,7 @@ Useful for automated incremental backup of an initialised disk.
 You are advised to use the destination disk UUID, as standard file device identifers can change between reboots.
 Example:
 ```
-$ sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a --script
+sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a --script
 ```
 
 ## Use cases
@@ -138,7 +134,7 @@ Some typical example use cases follow
 
 ## Configuration
 
-#### Config Files
+### Config Files
 ClonePi utilises configuration files at `/etc/clonepi/`. 
 These can be edited to tune ClonePi for your system and use case. 
 Notes on each of the configurable items are included in the files.
@@ -146,10 +142,10 @@ Notes on each of the configurable items are included in the files.
 + **clonepi.conf** - main config file
 + **raspbian.excludes** - files/directories to be excluded from the running OS sync
 
-#### Script Hooks
+### Script Hooks
 Script hooks allow you to inject your own code at specific points during the ClonePi process
 ```
-$ sudo clonepi /dev/sdb --hook-pre-sync=/etc/clonepi/stop-services.sh --hook-post-sync=/etc/clonepi/start-services.sh
+sudo clonepi /dev/sdb --hook-pre-sync=/etc/clonepi/stop-services.sh --hook-post-sync=/etc/clonepi/start-services.sh
 ```
 
 Currently there are two hooks available
@@ -170,18 +166,13 @@ You can optionally end your scripts with an exit code and ClonePi will take the 
 + **exit 1** and clonepi will **output an error and abort**
 + **exit 2** and clonepi will **output info and continue**
 
-Currently there are two hooks;
-
-+ `--hook-pre-sync` runs after the clone disk/file has been setup/initialised, but before the main rsync process
-+ `--hook-post-sync` runs after the main rsync process has finished, but before the clone disk/file is unmounted
-
 
 ## Further Help & Info
 
 ### Some hints for the less experienced
 You will need to know the device name of your SD card. ClonePi cannot determine this for you, but run the following command to identify all attached disks...
 ```
-$ sudo fdisk -l
+sudo fdisk -l
 ```
 A couple of tips and a couple warnings when identifying your device;
 

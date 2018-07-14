@@ -7,19 +7,14 @@
 # - checks dependencies: system, rsync and fsck.vfat
 # - copies clonepi to /usr/local/sbin & sets owner/permisions
 # - copies configuration files to /etc/clonepi/ & sets owner/perms
-#   - only if they don't yet exist (will not overwrite existing configuration)
 #
-
 # ClonePi version format: "major.minor.revision"
-# TODO: currently installed config files version check & warning
-# - revision releases will always work without needing to update config files
-# - breakign changes will be restricted to minor/major releases
 
 
 #
 # helper functions
 #
-doError()
+doMsg()
 {
 	# msg, type
 	case "$2" in
@@ -27,16 +22,22 @@ doError()
 			printf "WARNING: ${1}\n"
 			echo
 			;;
-		user)
+		user-abort)
 			printf "User aborted: ${1}\n"
 			echo
 			exit 0
 			;;
-		*)
+		error)
 			printf "ERROR: ${1}\n"
 			echo "Aborting!"
 			echo
 			exit 1
+			;;
+		info-abort)
+			printf "INFO: ${1}\n"
+			echo "Nothing to do!"
+			echo
+			exit 0
 			;;
 	esac
 }
@@ -47,13 +48,14 @@ doError()
 #
 INSTALL_DIR="/usr/local/sbin"
 CONF_DIR="/etc/clonepi"
+BAK_DIR="/tmp/clonepi-conf-bak"
 GITHUB_VERSION_URL="https://raw.githubusercontent.com/SpoddyCoder/clonepi/master/version.txt"
 
 echo
 echo "Welcome to the ClonePi installer"
 echo
 if [ `id -u` != 0 ]; then
-	doError "The ClonePi installer needs to be run as root"
+	doMsg "The ClonePi installer needs to be run as root" "error"
 fi
 # get current state
 # ...version for this installer
@@ -72,7 +74,17 @@ else
 	echo "...error trying to get latest version - assuming source repo/dir is upto date."
 	REMOTE_VERSION=$NEW_VERSION
 fi
-echo
+# ...current conf & excludes versions, if installed
+CUR_CONF_VER=""
+CUR_EXCLUDES_VER=""
+if [ -d $CONF_DIR ]; then
+	if [ -f ${CONF_DIR}/clonepi.conf ]; then
+		CUR_CONF_VER=`cat ${CONF_DIR}/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+	fi
+	if [ -f ${CONF_DIR}/raspbian.excludes ]; then
+		CUR_EXCLUDES_VER=`cat ${CONF_DIR}/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+	fi
+fi
 
 
 #
@@ -83,7 +95,7 @@ if [ -d .git ]; then
 		echo "Source repo is at latest version."
 		echo
 	else
-		doError "Source repo is not upto date." "warn"
+		doMsg "Source repo is not upto date." "warn"
 		read -p "Perform a 'git pull origin master' now (yes|no)? " UI < /dev/tty
 		if [ ! "$UI" = "y" -a ! "$UI" = "yes" ]; then
 			echo "Continuing without updating the repo"
@@ -95,14 +107,14 @@ if [ -d .git ]; then
 			        echo "Repo updated sucessfully"
 			        echo
 			else
-			        doError "problem updating repo."
+			        doMsg "problem updating repo." "error"
 			fi
 			NEW_VERSION=`cat version.txt | xargs`
 		fi
 	fi
 else
 	if [ "$CUR_VERSION" != "$NEW_VERSION" ]; then
-		doError "Source install dir is not upto date.\nDownload the latest zip to get latest version." "warn"
+		doMsg "Source install dir is not upto date.\nDownload the latest zip to get latest version." "warn"
 	fi
 fi
 
@@ -113,7 +125,7 @@ fi
 # system check
 IS_RASPBIAN=`lsb_release -d | grep -i Raspbian`
 if [ -z "$IS_RASPBIAN" -o ! $? = 0 ]; then
-	doError "this doesn't look like a Rapsbian system." "warn"
+	doMsg "this doesn't look like a Rapsbian system." "warn"
 	echo "Your OS is reported as:"
 	lsb_release -d
 	echo
@@ -122,16 +134,20 @@ if [ -z "$IS_RASPBIAN" -o ! $? = 0 ]; then
 fi
 # rsync check
 if ! rsync --version > /dev/null; then
-	doError "ClonePi requires rsync."
+	doMsg "ClonePi requires rsync. Run the following to install: sudo apt-get update && sudo apt-get install rsync" "error"
 fi
 # fsck.vfat check
 if ! test -e /sbin/fsck.vfat; then
-	doError "fsck.vfat was not found. ClonePi requires dosfstools."
+	doMsg "ClonePi requires dosfstools. Run the following to install: sudo apt-get update && sudo apt-get install dosfstools" "error"
 fi
 
 #
 # pre-install setup
 #
+NEW_CONF_VER=`cat conf/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+NEW_EXCLUDES_VER=`cat conf/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+UPGRADE_CONF=false
+UPGRADE_EXCLUDES=false
 INSTALL_CLONEPI=true
 INSTALL_CONF_DIR=true
 INSTALL_CONF_FILE=true
@@ -148,15 +164,28 @@ if [ -d ${CONF_DIR} ]; then
                 INSTALL_EXCLUDES_FILE=false
         fi
 fi
+if ! $INSTALL_CONF_FILE; then
+	# check if existing version is latest
+	if [ "$CUR_CONF_VER" = "$NEW_CONF_VER" ]; then
+		UPGRADE_CONF=false
+	else
+		UPGRADE_CONF=true
+	fi
+fi
+if ! $INSTALL_EXCLUDES_FILE; then
+        # check if existing version is latest
+        if [ "$CUR_EXCLUDES_VER" = "$NEW_EXCLUDES_VER" ]; then
+                UPGRADE_EXCLUDES=false
+        else
+                UPGRADE_EXCLUDES=true
+        fi
+fi
 
 #
 # summarise and get user confirmation
 #
-if [ "$INSTALL_CONF_DIR" = false -a "$INSTALL_CONF_FILE" = false -a "$INSTALL_EXCLUDES_FILE" = false -a "$INSTALL_CLONEPI" = false ]; then
-	doError "Latest ClonePi v${CUR_VERSION} already installed and config files in place" "info"
-	echo "Nothing to do - exiting!"
-	echo
-	exit 0
+if [ "$INSTALL_CONF_DIR" = false -a "$INSTALL_CONF_FILE" = false -a "$INSTALL_EXCLUDES_FILE" = false -a "$INSTALL_CLONEPI" = false -a "$UPGRADE_CONF" = false -a "$UPGRADE_EXCLUDES" = false ]; then
+	doMsg "ClonePi v${CUR_VERSION} already installed with latest config files" "info-abort"
 else
 	echo "This will..."
 	if $INSTALL_CLONEPI; then
@@ -175,11 +204,17 @@ else
 	if $INSTALL_EXCLUDES_FILE; then
 		echo " - Install missing config file at ${CONF_DIR}/raspbian.excludes"
 	fi
+	if $UPGRADE_CONF; then
+		echo " - Upgrade the config file at ${CONF_DIR}/clonepi.conf"
+	fi
+	if $UPGRADE_EXCLUDES; then
+                echo " - Upgrade the excludes file at ${CONF_DIR}/raspbian.excludes"
+        fi
 fi
 echo
 read -p "Continue with install (yes|no)? " UI < /dev/tty
 if [ ! "$UI" = "y" -a ! "$UI" = "yes" ]; then
-	doError "installation not confirmed" "user"
+	doMsg "installation not confirmed" "user-abort"
 fi
 
 #
@@ -190,7 +225,7 @@ if $INSTALL_CLONEPI; then
 	if [ "$?" = 0 ]; then
 		echo "Installed ClonePi to ${INSTALL_DIR}/clonepi"
 	else
-		doError "could not install ClonePi to ${INSTALL_DIR}/clonepi"
+		doMsg "could not install ClonePi to ${INSTALL_DIR}/clonepi" "error"
 	fi
 fi
 
@@ -199,7 +234,7 @@ if $INSTALL_CONF_DIR; then
 	if [ "$?" = 0 ]; then
 		echo "Created config directory at ${CONF_DIR}"
 	else
-		doError "could not create config directory at ${CONF_DIR}"
+		doMsg "could not create config directory at ${CONF_DIR}" "error"
 	fi
 fi
 
@@ -208,7 +243,7 @@ if $INSTALL_CONF_FILE; then
 	if [ "$?" = 0 ]; then
 		echo "Installed config file at ${CONF_DIR}/clonepi.conf"
         else
-		doError "could not install config file at ${CONF_DIR}/clonepi.conf"
+		doMsg "could not install config file at ${CONF_DIR}/clonepi.conf" "error"
         fi
 fi
 
@@ -217,9 +252,34 @@ if $INSTALL_EXCLUDES_FILE; then
 	if [ "$?" = 0 ]; then
 		echo "Installed config file at ${CONF_DIR}/raspbian.excludes"
         else
-		doError "could not install config file at ${CONF_DIR}/raspbian.excludes"
+		doMsg "could not install config file at ${CONF_DIR}/raspbian.excludes" "error"
         fi
 fi
+
+if [ "$UPGRADE_CONF" = true -o "$UPGRADE_EXCLUDES" = true ]; then
+	rm -rf ${BAK_DIR} && mkdir ${BAK_DIR}
+	if $UPGRADE_CONF; then
+		mv ${CONF_DIR}/clonepi.conf ${BAK_DIR}
+		cp ./conf/clonepi.conf ${CONF_DIR}/clonepi.conf
+		if [ "$?" = 0 ]; then
+                	echo "Replaced config file at ${CONF_DIR}/clonepi.conf with latest version"
+			doMsg "Your old config file has been moved to ${BAK_DIR} - if you have modified this, you may need to merge back in any of your own changes" "warn"
+        	else
+        	        doMsg "could not install config file at ${CONF_DIR}/clonepi.conf" "error"
+        	fi
+	fi
+	if $UPGRADE_EXCLUDES; then
+		mv ${CONF_DIR}/raspbian.excludes ${BAK_DIR}
+                cp ./conf/raspbian.excludes ${CONF_DIR}/raspbian.excludes
+		if [ "$?" = 0 ]; then
+                	echo "Replaced excludes file at ${CONF_DIR}/raspbian.excludes with latest version"
+                        doMsg "Your old excludes file has been moved to ${BAK_DIR} - if you have modified this, you may need to merge back in your own changes" "warn"
+        	else
+        	        doMsg "could not install excludes file at ${CONF_DIR}/raspbian.excludes" "error"
+        	fi
+	fi
+fi
+
 chown -R root:root ${CONF_DIR}
 chmod -R 755 ${CONF_DIR}
 echo

@@ -10,7 +10,7 @@
 #
 # helper functions
 #
-doError()
+doMsg()
 {
 	# msg, type
 	case "$2" in
@@ -18,12 +18,12 @@ doError()
 			printf "WARNING: ${1}\n"
 			echo
 			;;
-		user)
+		user-abort)
 			printf "User aborted: ${1}\n"
 			echo
 			exit 0
 			;;
-		*)
+		error)
 			printf "ERROR: ${1}\n"
 			echo "Aborting!"
 			echo
@@ -43,7 +43,7 @@ BAK_DIR="/tmp/clonepi-conf-bak"
 
 # exit if not root
 if [ `id -u` != 0 ]; then
-	doError "The clonepi uninstaller needs to be run as root"
+	doMsg "The clonepi uninstaller needs to be run as root" "error"
 fi
 
 #
@@ -54,7 +54,7 @@ echo "This will remove clonepi and its config files from your system."
 echo
 read -p "Continue with uninstall (yes|no)? " UI < /dev/tty
 if [ ! "$UI" = "y" -a ! "$UI" = "yes" ]; then
-	doError "uninstall not confirmed" "user"
+	doMsg "uninstall not confirmed" "user-abort"
 fi
 
 #
@@ -66,17 +66,17 @@ if [ -f ${INSTALL_DIR}/clonepi ]; then
 	if [ "$?" = 0 ]; then
 		echo "Deleted ${INSTALL_DIR}/clonepi"
         else
-		doError "could not delete ${INSTALL_DIR}/clonepi"
+		doMsg "could not delete ${INSTALL_DIR}/clonepi" "error"
 	fi
 fi
 if [ -d ${CONF_DIR} ]; then
 	rm -rf ${BAK_DIR} && mv ${CONF_DIR} ${BAK_DIR}
 	if [ "$?" = 0 ]; then
 		echo "Deleted ${CONF_DIR}"
+		echo "A copy of the ${CONF_DIR} config dir has been placed at ${BAK_DIR}"
+		echo
         else
-		doError "could not delete ${CONF_DIR}"
+		doMsg "could not delete ${CONF_DIR}" "error"
 	fi
-	echo "A copy of the config dir has been placed at ${BAK_DIR}"
-	echo
 fi
 exit 0

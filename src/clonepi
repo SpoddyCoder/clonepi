@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.5.0
+VER=1.5.1
 
 
 
@@ -442,7 +442,7 @@ else
 		CHECK_LOOP=`losetup -j $DEST_DISK --list --noheadings --output NAME`
 		if [ "$CHECK_LOOP" != "" ]; then
 			# this file already has a loop device setup, warn the user
-			doMsg "a loop device for the destination file already exists: $CHECK_LOOP.\nIf you choose to continue a new loop device will be created." "warn"
+			doMsg "a loop device for the destination file already exists: $CHECK_LOOP.\nIf you choose to continue a new loop device will be created. To delete it, run: sudo losetup -d $CHECK_LOOP" "warn"
 		fi
 		LOOP_DEVICE=`losetup --partscan --find --show $DEST_DISK`
 		if [ $? = 0 ]; then
@@ -602,11 +602,15 @@ if [ $SRC_SECTORS != $DEST_SECTORS ]; then
 fi
 
 # check pre & post sync hooks exist if specified
-if [ "$HOOK_PRE_SYNC" != "" -a ! -f $HOOK_PRE_SYNC ]; then
-	doMsg "the pre-sync script : $HOOK_PRE_SYNC does not exist" "warn"
+if [ "$HOOK_PRE_SYNC" != "" ]; then
+	if [ ! -f $HOOK_PRE_SYNC ]; then
+		doMsg "the pre-sync script : $HOOK_PRE_SYNC does not exist" "warn"
+	fi
 fi
-if [ "$HOOK_POST_SYNC" != "" -a ! -f $HOOK_POST_SYNC ]; then
-        doMsg "the post-sync script : $HOOK_POST_SYNC does not exist" "warn"
+if [ "$HOOK_POST_SYNC" != "" ]; then
+	if [ ! -f $HOOK_POST_SYNC ]; then
+	        doMsg "the post-sync script : $HOOK_POST_SYNC does not exist" "warn"
+	fi
 fi
 
 #

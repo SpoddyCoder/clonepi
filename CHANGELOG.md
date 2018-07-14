@@ -1,3 +1,16 @@
+## 1.5.1 (14th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - show loop device deletion command on associated warning
+
+BUG FIXES:
+
+ - stop hook checks throwing error
+
+
 ## 1.5.0 (8th July 2018)
 
 FEATURES:

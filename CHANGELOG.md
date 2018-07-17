@@ -1,3 +1,19 @@
+## 1.6.0 (17th July 2018)
+
+FEATURES:
+
+ - optional gzip compression on clone to file
+
+IMPROVEMENTS:
+
+ - moved clone to file init to main clone process so it can be confirmed
+ - hook-pre-sync & hook-post-sync switch params can be seperated by space to allows autopath completion
+ - documentation
+ - dev helpers
+
+BUG FIXES:
+
+
 ## 1.5.3 (14th July 2018)
 
 FEATURES:

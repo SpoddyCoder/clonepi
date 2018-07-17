@@ -4,8 +4,9 @@ ClonePi will clone a running Raspberry Pi running a Debian based system (Raspbia
 
 + Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
 + Incremental on-the-fly cloning
-+ Clone to a physical device or a file (stored on a NAS or external disk)
++ Clone to a physical device
 + Size up or down to fit the destination disk
++ Clone to a file (stored on a NAS or external disk)
 + Configuration options allow it to be tuned to work with many systems
 + Script hooks allow it to be extended beyond the default use cases
 + Headless operation, works without a GUI
@@ -56,6 +57,13 @@ Or to an image file. This requires as much space as the source disk (place on a 
 sudo clonepi /mnt/nas/pi-system-backups/my-pi.img
 ```
 
+When cloning to a file, you can optionally compress the output stream with gzip
+```
+sudo clonepi /mnt/nas/pi-system-backups/my-pi.img.gz --init-destination --compress-file
+```
+This will take much longer than a normal clone. Also note, compressed image files cannot be incrementally cloned to. This will be smaller than the source disk, so *may* fit on the local filsystem if desired (not advised).
+
+
 ### Options 
 
 + `--help` or `-h` show usage info
@@ -63,18 +71,20 @@ sudo clonepi /mnt/nas/pi-system-backups/my-pi.img
 + `--quiet` or `-q` don't show info, show only warnings & errors.
 + `--init-destination` force initialisation of the destination disk. This will erase all of its contents.
 + `--fill-destination` fill destination disk. Implies `--init-destination`. Will attempt to resize the last partition to fill the destination disk. If the source disk is larger than the destination it will attempt to resize down, but this may or may not leave room for the content.
-+ `--rsync-verbose` list all files as they are rsynced.
-+ `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
++ `--compress-file` only for cloning to file - will compress the output stream using gzip. Does not apply to device cloning. NB: Incremental cloning isn't possible to a compressed image file.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore-warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 + `--hook-pre-sync` specify a script to be run prior to main sync process. See script hooks section for more detail.
 + `--hook-post-sync` specify a script to be run post the main sync process, but before clone is unmounted
++ `--rsync-verbose` list all files as they are rsynced.
++ `--rsync-dry-run` apply --dry-run flag to rsync, which will show files that would be synced, but not actually sync them.
 
 ### Modes of Operation
 
 + If the destination disk/file matches the source partition structure then ClonePi assumes this is an initialised disk and an incremental copy will be performed.
 + ClonePi will require an initialising of the destination disk/file if its partition structure does not match the source disk
++ This behavior can be changed with the switches.
 
 #### Initialisation + Copy
 First time setup of the destination disk/file.
@@ -103,17 +113,17 @@ Example:
 sudo clonepi 5e8e1777-797d-4f59-9696-4a6d42f0690a --script
 ```
 
-## Use cases
+### Use cases
 Typical use cases for ClonePi are backing up a system for disaster recovery or cloning a system to run on other Pi's.
-The options, configuration files and script hooks allow for a lot of flexibility
+The options, configuration files and script hooks allow for a lot of flexibility. 
 Some typical example use cases follow
 
-### Backup to a plugged in SD card
+#### Backup to a plugged in SD card
 
 1. Initialise disk + perform first time copy, eg: `sudo clonepi /dev/sdb --init-destination`
 1. Perform incremental update at regular intervals, eg: `sudo clonepi /dev/sdb`
 
-### Automatically backup to a file on a NAS once a week
+#### Automatically do incremental backup to a file on a NAS once a week
 
 1. Mount NAS to the Pi (see google for instructions, inside /mnt/ is normal)
 1. Initialise file + perform first time copy, eg: `sudo clonepi /mnt/nas/system-backups/my-pi.img --init-destination`
@@ -124,28 +134,23 @@ Some typical example use cases follow
 ```
 1. Read the last 50 lines of the log file at any time to ensure its running properly `sudo tail -50 /var/log/clonepi.log`
 
-### Cloning SD card for other PI's
+#### Cloning SD card for other PI's
 
 1. Initialise disk + perform first time copy, eg: `sudo clonepi /dev/sdb --init-destination --wait-before-unmount`
 1. Use the `--wait-before-unmount` switch to pause at the end of the cloning process. Before unmounting the clone disk, use a 2nd shell window to modify any files on the clone you need for it to work on other Pi's
 1. Eg: you may want to edit the hostname, network configuration etc. 
 1. **Top Tip**: You can use the script hooks to automate this final step, see below.
 
+#### Backup to a compressed file for long term storage on external drive
+1. Initialise file and compress output stream, eg: `sudo clonepi /mnt/ext-hd/system-backups/my-pi.img.gz --init-destination --compress-file`
 
-## Configuration
 
-### Config Files
-ClonePi utilises configuration files at `/etc/clonepi/`. 
-These can be edited to tune ClonePi for your system and use case. 
-Notes on each of the configurable items are included in the files.
-
-+ **clonepi.conf** - main config file
-+ **raspbian.excludes** - files/directories to be excluded from the running OS sync
+## Advanced Configuration
 
 ### Script Hooks
-Script hooks allow you to inject your own code at specific points during the ClonePi process
+Script hooks allow you to inject your own code at specific points during the ClonePi process, eg...
 ```
-sudo clonepi /dev/sdb --hook-pre-sync=/etc/clonepi/stop-services.sh --hook-post-sync=/etc/clonepi/start-services.sh
+sudo clonepi /dev/sdb --hook-pre-sync /home/pi/clonepi-hooks/stop-services.sh --hook-post-sync /home/pi/clonepi-hooks/start-services.sh
 ```
 
 Currently there are two hooks available
@@ -165,6 +170,14 @@ You can optionally end your scripts with an exit code and ClonePi will take the 
 + **exit 0** and clonepi will **continue**
 + **exit 1** and clonepi will **output an error and abort**
 + **exit 2** and clonepi will **output info and continue**
+
+### Config Files
+ClonePi utilises configuration files at `/etc/clonepi/`.
+These can be edited to tune ClonePi for your system and use case.
+Notes on each of the configurable items are included in the files.
+
++ **clonepi.conf** - main config file
++ **raspbian.excludes** - files/directories to be excluded from the running OS sync
 
 
 ## Further Help & Info
@@ -204,7 +217,7 @@ Contributions and pull requests are welcome, but we ask the following guidelines
 
 ## Additional Notes
 This project owes it's genesis to rpi-clone and is based on the same clever "partial dd & full rsync" approach.
-If your use case is simple and you are just running a standard 2 partition Raspbian install, then consider using Bill's much simpler and lighter-weight version at https://github.com/billw2/rpi-clone
+Check it out @ https://github.com/billw2/rpi-clone
 
 
 ## Authors

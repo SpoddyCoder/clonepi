@@ -104,8 +104,9 @@ if [ -d .git ]; then
 			echo "Updating repo..."
 			su - `logname` -c "cd `pwd` && git pull origin master"
 			if [ $? = 0 ]; then
-			        echo "Repo updated sucessfully"
-			        echo
+			        echo "Repo updated sucessfully, please re-run the installer"
+				# TODO: add installer version check here for nicer UX
+			        exit 0
 			else
 			        doMsg "problem updating repo." "error"
 			fi

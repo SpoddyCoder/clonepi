@@ -1,17 +1,17 @@
 # ClonePi
 
-ClonePi will clone a running Raspberry Pi running a Debian based system (Raspbian tested, may be tweaked to work with others) to a destination SD card/device or a file. Features...
+ClonePi will clone a running Raspberry Pi to a destination SD card, device or a file. Features...
 
 + Works with standard 2 partition Raspbian setups, multi-partition NOOBS setups and more
 + Incremental on-the-fly cloning
-+ Clone to a physical device
-+ Size up or down to fit the destination disk
-+ Clone to a file (stored on a NAS or external disk)
++ Clone to a physical device and optionally size up or down to fit the destination disk
++ Clone to a file (stored on a NAS or external disk) and optionally compress it
++ Optional unattended operation, suitable for cron use
 + Configuration options allow it to be tuned to work with many systems
 + Script hooks allow it to be extended beyond the default use cases
 + Headless operation, works without a GUI
-+ Optional unattended operation, suitable for cron use
 
+Raspbian is tested - may be tweaked to work with others systems.
 
 ## Installing / Updating / Removing
 
@@ -22,13 +22,7 @@ cd clonepi
 sudo ./install.sh
 ```
 
-Simply re-run the installer at any time to update to latest version
-```
-cd clonepi
-sudo ./install.sh
-```
-
-To completely remove ClonePi and config files, run the uninstaller
+Simply re-run the installer at any time to update to latest version. To completely remove ClonePi and config files, run the uninstaller
 ```
 sudo ./uninstall.sh
 ```
@@ -57,11 +51,11 @@ Or to an image file. This requires as much space as the source disk (place on a 
 sudo clonepi /mnt/nas/pi-system-backups/my-pi.img
 ```
 
-When cloning to a file, you can optionally compress the output stream with gzip
+When cloning to a file you can optionally compress the output stream with `gzip`. It can be very useful to trim the source disk prior to cloning, as this can significantly reduce the size of the compressed image - ClonePi makes this easy
 ```
-sudo clonepi /mnt/nas/pi-system-backups/my-pi.img.gz --init-destination --compress-file
+sudo clonepi /mnt/nas/pi-system-backups/my-pi.img.gz --init-destination --compress-file --trim-source
 ```
-This will take much longer than a normal clone. Also note, compressed image files cannot be incrementally cloned to. This will be smaller than the source disk, so *may* fit on the local filsystem if desired (not advised).
+Compressed image files cannot be incrementally cloned to. This will be smaller than the source disk, so *may* fit on the local filsystem if desired. The compression requires a lot of CPU, so this will take much longer than a normal clone.
 
 
 ### Options 
@@ -72,6 +66,7 @@ This will take much longer than a normal clone. Also note, compressed image file
 + `--init-destination` force initialisation of the destination disk. This will erase all of its contents.
 + `--fill-destination` fill destination disk. Implies `--init-destination`. Will attempt to resize the last partition to fill the destination disk. If the source disk is larger than the destination it will attempt to resize down, but this may or may not leave room for the content.
 + `--compress-file` only for cloning to file - will compress the output stream using gzip. Does not apply to device cloning. NB: Incremental cloning isn't possible to a compressed image file.
++ `--trim-source` useful when using `--compress-file`. Will run a `fstrim` on all source partitions, which zero's unused space and therefore can significantly reduce the size of the compressed image file.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
 + `--ignore-warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
@@ -125,7 +120,7 @@ Some typical example use cases follow
 
 #### Automatically do incremental backup to a file on a NAS once a week
 
-1. Mount NAS to the Pi (see google for instructions, inside /mnt/ is normal)
+1. Mount NAS to the Pi (see google for instructions, inside `/mnt/` is normal)
 1. Initialise file + perform first time copy, eg: `sudo clonepi /mnt/nas/system-backups/my-pi.img --init-destination`
 1. Perform incremental updates once a week, automatically via cron `sudo nano crontab -e`
 1. Add the following line to run clonepi at midnight on sunday and redirect the output to a log file
@@ -142,7 +137,7 @@ Some typical example use cases follow
 1. **Top Tip**: You can use the script hooks to automate this final step, see below.
 
 #### Backup to a compressed file for long term storage on external drive
-1. Initialise file and compress output stream, eg: `sudo clonepi /mnt/ext-hd/system-backups/my-pi.img.gz --init-destination --compress-file`
+1. Trim the soruce disk, initialise file and compress output stream, eg: `sudo clonepi /mnt/ext-hd/system-backups/my-pi.img.gz --init-destination --compress-file --trim-source`
 
 
 ## Advanced Configuration

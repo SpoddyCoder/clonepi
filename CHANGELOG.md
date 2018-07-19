@@ -1,3 +1,20 @@
+## 1.6.1 (19th July 2018)
+
+FEATURES:
+
+ - optional trim of source disk for optimum compressed file output size
+
+IMPROVEMENTS:
+
+ - installer exit on update, to allow for updates to itself
+ - run output
+ - documentation
+
+BUG FIXES:
+
+ - fixed empty clone image file created even if not confirmed by user
+
+
 ## 1.6.0 (17th July 2018)
 
 FEATURES:

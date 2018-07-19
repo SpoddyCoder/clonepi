@@ -1,3 +1,16 @@
+## 1.6.2 (19th July 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - made installer more self-aware
+
+BUG FIXES:
+
+ - fixed bug where re-cloning loop device immediately after finishing previous clone could result in file not found error
+
+
 ## 1.6.1 (19th July 2018)
 
 FEATURES:

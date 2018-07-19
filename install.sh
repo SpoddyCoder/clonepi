@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# install script for clonepi:
+# install script for ClonePi
+# last updated @ v1.6.2
 #
 # - gets latest available version from github
 # - updates source repo if possible
@@ -50,6 +51,7 @@ INSTALL_DIR="/usr/local/sbin"
 CONF_DIR="/etc/clonepi"
 BAK_DIR="/tmp/clonepi-conf-bak"
 GITHUB_VERSION_URL="https://raw.githubusercontent.com/SpoddyCoder/clonepi/master/version.txt"
+CUR_INSTALLER_VER=`head -10 install.sh | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
 
 echo
 echo "Welcome to the ClonePi installer"
@@ -63,7 +65,7 @@ NEW_VERSION=`cat version.txt | xargs`
 # ...version currently installed
 CUR_VERSION=0
 if [ -f ${INSTALL_DIR}/clonepi ]; then
-	CUR_VERSION=`${INSTALL_DIR}/clonepi | grep "ClonePi v" | sed 's/^ClonePi v//'`
+	CUR_VERSION=`${INSTALL_DIR}/clonepi -v | grep "ClonePi v" | sed 's/^ClonePi v//'`
 fi
 # ...version on github
 echo "Checking for latest version number at GitHub..."
@@ -79,10 +81,10 @@ CUR_CONF_VER=""
 CUR_EXCLUDES_VER=""
 if [ -d $CONF_DIR ]; then
 	if [ -f ${CONF_DIR}/clonepi.conf ]; then
-		CUR_CONF_VER=`cat ${CONF_DIR}/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+		CUR_CONF_VER=`head -5 ${CONF_DIR}/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
 	fi
 	if [ -f ${CONF_DIR}/raspbian.excludes ]; then
-		CUR_EXCLUDES_VER=`cat ${CONF_DIR}/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+		CUR_EXCLUDES_VER=`head -5 ${CONF_DIR}/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
 	fi
 fi
 
@@ -91,6 +93,7 @@ fi
 # update repo to latest, if possible
 #
 if [ -d .git ]; then
+	# running inside git repo
 	if [ "$REMOTE_VERSION" = "$NEW_VERSION" ]; then
 		echo "Source repo is at latest version."
 		echo
@@ -104,9 +107,12 @@ if [ -d .git ]; then
 			echo "Updating repo..."
 			su - `logname` -c "cd `pwd` && git pull origin master"
 			if [ $? = 0 ]; then
-			        echo "Repo updated sucessfully, please re-run the installer"
-				# TODO: add installer version check here for nicer UX
-			        exit 0
+			        echo "Repo updated sucessfully"
+				# check if installer has been updated
+				NEW_INSTALLER_VER=`head -5 install.sh | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+				if [ "$CUR_INSTALLER_VER" != "$NEW_INSTALLER_VER" ]; then
+					doMsg "the installer has been updated, please re-run" "error"
+				fi
 			else
 			        doMsg "problem updating repo." "error"
 			fi
@@ -114,8 +120,9 @@ if [ -d .git ]; then
 		fi
 	fi
 else
+	# not a git repo, assume download zip
 	if [ "$CUR_VERSION" != "$NEW_VERSION" ]; then
-		doMsg "Source install dir is not upto date.\nDownload the latest zip to get latest version." "warn"
+		doMsg "Source install dir is not upto date.\nDownload the latest zip to get latest version." "error"
 	fi
 fi
 
@@ -145,8 +152,8 @@ fi
 #
 # pre-install setup
 #
-NEW_CONF_VER=`cat conf/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
-NEW_EXCLUDES_VER=`cat conf/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+NEW_CONF_VER=`head -5 conf/clonepi.conf | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
+NEW_EXCLUDES_VER=`head -5 conf/raspbian.excludes | grep "last updated" | cut -f2 -d'@' | xargs | cut -f2 -d'v'`
 UPGRADE_CONF=false
 UPGRADE_EXCLUDES=false
 INSTALL_CLONEPI=true

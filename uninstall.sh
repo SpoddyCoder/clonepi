@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# uninstall script for clonepi:
+# uninstall script for ClonePi
+# last updated @ v1.6.2
 #
 # - deletes clonepi command script
 # - copies config dir to /tmp

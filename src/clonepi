@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.7.1
+VER=1.7.2
 
 
 
@@ -685,9 +685,9 @@ fi
 # check services exist if specified
 if [ "$SERVICE_LIST" != "" ]; then
 	for SERVICE in ${SERVICE_LIST//,/ }; do
-		servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+		servicecheck=`systemctl list-unit-files | grep enabled | grep "${SERVICE}.service" | wc -l`
 		if [ $servicecheck != 1 ]; then
-			doMsg "could not find service: $SERVICE" "warn"
+			doMsg "could not find ${SERVICE}.service" "warn"
 		fi
 	done
 fi
@@ -1028,7 +1028,7 @@ stopServices()
 {
 	if [ "$SERVICE_LIST" != "" -a $SERVICES_STOPPED = false ]; then
 		for SERVICE in ${SERVICE_LIST//,/ }; do
-			servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+			servicecheck=`systemctl list-unit-files | grep enabled | grep "${SERVICE}.service" | wc -l`
 			if [ $servicecheck = 1 ]; then
 				doMsg "stopping ${SERVICE}.service" "info"
 				servicestop=`systemctl stop ${SERVICE}.service`
@@ -1041,7 +1041,7 @@ startServices()
 {
 	if [ "$SERVICE_LIST" != "" ]; then
 		for SERVICE in ${SERVICE_LIST//,/ }; do
-			servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+			servicecheck=`systemctl list-unit-files | grep enabled | grep "${SERVICE}.service" | wc -l`
 			if [ $servicecheck = 1 ]; then
 				doMsg "starting ${SERVICE}.service" "info"
 				servicestart=`systemctl start ${SERVICE}.service`

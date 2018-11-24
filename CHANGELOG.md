@@ -1,3 +1,14 @@
+## 1.7.2 (24th November 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+BUG FIXES:
+
+ - more robust service check
+
+
 ## 1.7.1 (24th November 2018)
 
 FEATURES:

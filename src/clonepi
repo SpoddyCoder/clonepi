@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.6.2
+VER=1.7.0
 
 
 
@@ -32,6 +32,7 @@ usageInfo()
 	echo "   --compress-file        gzip resulting image file (n/a when cloning to device)"
 	echo "   --trim-source          trim source disk to optimize the compressed image file size"
 	echo "   --script               run in non-interactive mode"
+	echo "   --services             list of systemctl services to stop pre-sync & start post-sync"
 	echo "   --wait-before-unmount  pause after the clone has finished, but before it's unmounted"
 	echo "   --ignore-warnings      dont exit on warnings, be careful when using with --script"
 	echo "   --hook-pre-sync        script to be run prior to main sync process"
@@ -262,7 +263,10 @@ EXIT_ON_WARNING=true
 WAIT_BEFORE_UNMOUNT=false
 COMPRESS_FILE=false
 QUIET_MODE=false
+SERVICE_LIST=""
+SERVICES_STOPPED=false
 HOOK_PRE_SYNC=""
+HOOK_PRE_SYNC_DONE=false
 HOOK_POST_SYNC=""
 CLONE_TO=""	# one of: dev, uuid, file
 TRIM_SOURCE=false
@@ -320,6 +324,16 @@ while [ "$1" ]; do
 		--wait-before-unmount)
                         WAIT_BEFORE_UNMOUNT=true
                         ;;
+		--services|--services=*)
+			if [[ $1 = *"="* ]]; then
+				# = used between switch and path
+				SERVICE_LIST=`echo "$1" | cut -f2 -d'='`
+			else
+				# space used between switch and path
+				shift
+				SERVICE_LIST=$1
+			fi
+			;;
 		--hook-pre-sync|--hook-pre-sync=*)
 			if [[ $1 = *"="* ]]; then
 				# = used between switch and path
@@ -656,6 +670,16 @@ else
 	fi
 fi
 
+# check services exist if specified
+if [ "$SERVICE_LIST" != "" ]; then
+	for SERVICE in ${SERVICE_LIST//,/ }; do
+		servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+		if [ $servicecheck != 1 ]; then
+			doMsg "could not find service: $SERVICE" "warn"
+		fi
+	done
+fi
+
 # check pre & post sync hooks exist if specified
 if [ "$HOOK_PRE_SYNC" != "" ]; then
 	if [ ! -f $HOOK_PRE_SYNC ]; then
@@ -775,6 +799,11 @@ if [ $INIT_DEST_FILE = true -a "$CLONE_TO" = "file" ]; then
 		TASK=$((TASK+1))
 	fi
 
+	if [ "$SERVICE_LIST" != "" ]; then
+		doMsg "${TASK}) ${SERVICE_LIST} service(s) will be stopped" "info"
+		TASK=$((TASK+1))
+	fi
+
 	if [ $COMPRESS_FILE = true ]; then
 		doMsg "${TASK}) destinaton file ${DEST_DISK} will be created as an image of the source disk and compressed" "info"
 	else
@@ -822,6 +851,11 @@ else
 		TASK=$((TASK+1))
 	fi
 
+	if [ "$SERVICE_LIST" != "" ]; then
+		doMsg "${TASK}) ${SERVICE_LIST} service(s) will be stopped" "info"
+		TASK=$((TASK+1))
+	fi
+
 	doMsg "${TASK}) filesystems will be synced:" "info"
 	CNT=1
 	while read -r SRC_SYNC_DIR; do
@@ -833,7 +867,14 @@ else
 
 fi
 
+
 # same for both dd clone & device clone flows
+
+if [ "$SERVICE_LIST" != "" ]; then
+	doMsg "${TASK}) ${SERVICE_LIST} service(s) will be restarted" "info"
+	TASK=$((TASK+1))
+fi
+
 if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
 	doMsg "${TASK}) post-sync script at $HOOK_POST_SYNC will be run" "info"
 	TASK=$((TASK+1))
@@ -844,7 +885,7 @@ if [ $WAIT_BEFORE_UNMOUNT = true ]; then
 	TASK=$((TASK+1))
 fi
 
-doMsg "${TASK}) cleanup any source / destination mounts & dirs" "info"
+doMsg "${TASK}) cleanup source + destination mounts & dirs" "info"
 TASK=$((TASK+1))
 
 
@@ -970,11 +1011,78 @@ trimSource()
 	fi
 }
 
+# start/stop all services in SERVICE_LIST if defined
+stopServices()
+{
+	if [ "$SERVICE_LIST" != "" -a $SERVICES_STOPPED = false ]; then
+		for SERVICE in ${SERVICE_LIST//,/ }; do
+			servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+			if [ $servicecheck = 1 ]; then
+				doMsg "stopping ${SERVICE}.service" "info"
+				servicestop=`systemctl stop ${SERVICE}.service`
+			fi
+		done
+		SERVICES_STOPPED=true
+	fi
+}
+startServices()
+{
+	if [ "$SERVICE_LIST" != "" ]; then
+		for SERVICE in ${SERVICE_LIST//,/ }; do
+			servicecheck=`systemctl list-unit-files | grep enabled | grep "$SERVICE" | wc -l`
+			if [ $servicecheck = 1 ]; then
+				doMsg "starting ${SERVICE}.service" "info"
+				servicestart=`systemctl start ${SERVICE}.service`
+			fi
+		done
+	fi
+}
+
+
+# invoke script hooks if defined
+runPreSyncHook()
+{
+	if [ ! -z $HOOK_PRE_SYNC -a -f $HOOK_PRE_SYNC ]; then
+		if [ $HOOK_PRE_SYNC_DONE = false ]; then
+			doMsg "running pre-sync script at $HOOK_PRE_SYNC" "info"
+			# run as subprocess, so it can access all clonepi variables and make controlled exit
+			(. $HOOK_PRE_SYNC)
+			EXIT_CODE=$?
+			HOOK_PRE_SYNC_DONE=true
+			if [ $EXIT_CODE != 0 ]; then
+				if [ $EXIT_CODE = 2 ]; then
+					doMsg "pre-sync script exited with error code: $EXIT_CODE" "info"
+				else
+					doMsg "pre-sync script exited with error code: $EXIT_CODE" "error-report"
+					doCleanup
+					doMsg "pre-sync script caused abort" "error"
+				fi
+			fi
+		fi
+	fi
+}
+runPostSyncHook()
+{
+	if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
+		doMsg "Running post-sync script at $HOOK_POST_SYNC" "info"
+		(. $HOOK_POST_SYNC)
+		EXIT_CODE=$?
+		if [ $EXIT_CODE != 0 ]; then
+			if [ $EXIT_CODE = 2 ]; then
+				doMsg "post-sync script exited with error code: $EXIT_CODE" "info"
+			else
+				doMsg "post-sync script exited with error code: $EXIT_CODE" "error-report"
+				doCleanup
+				doMsg "post-sync script caused abort" "error"
+			fi
+		fi
+	fi
+}
+
 if [ $INIT_DEST_FILE = true -a "$CLONE_TO" = "file" ]; then
 	#
         # full dd clone
 	#
-
 	if [ $TRIM_SOURCE = true ]; then
 		# if trimming we need to mount any unmounted source partitions
 		setupSourceMounts
@@ -985,6 +1093,12 @@ else
 	#
 	# standard device clone (or clone to file via loop)
 	#
+
+	#
+	# run pre-sync script hook & stop services
+	#
+	runPreSyncHook
+	stopServices
 
 	#
 	# format destination disk
@@ -1103,24 +1217,10 @@ else
 fi
 
 #
-# pre-sync script hook
+# run pre-sync script hook & stop services
 #
-if [ ! -z $HOOK_PRE_SYNC -a -f $HOOK_PRE_SYNC ]; then
-	doMsg "running pre-sync script at $HOOK_PRE_SYNC" "info"
-	# run as subprocess, so it can access all clonepi variables and make controlled exit
-	(. $HOOK_PRE_SYNC)
-	EXIT_CODE=$?
-	if [ $EXIT_CODE != 0 ]; then
-		if [ $EXIT_CODE = 2 ]; then
-			doMsg "pre-sync script exited with error code: $EXIT_CODE" "info"
-		else
-			doMsg "pre-sync script exited with error code: $EXIT_CODE" "error-report"
-			doCleanup
-			doMsg "pre-sync script caused abort" "error"
-		fi
-	fi
-fi
-
+runPreSyncHook
+stopServices
 
 #
 # main clone process
@@ -1197,22 +1297,9 @@ else
 fi
 
 #
-# post-sync script hook
-#
-if [ ! -z $HOOK_POST_SYNC -a -f $HOOK_POST_SYNC ]; then
-	doMsg "Running post-sync script at $HOOK_POST_SYNC" "info"
-	(. $HOOK_POST_SYNC)
-	EXIT_CODE=$?
-	if [ $EXIT_CODE != 0 ]; then
-		if [ $EXIT_CODE = 2 ]; then
-			doMsg "post-sync script exited with error code: $EXIT_CODE" "info"
-		else
-			doMsg "post-sync script exited with error code: $EXIT_CODE" "error-report"
-			doCleanup
-			doMsg "post-sync script caused abort" "error"
-		fi
-	fi
-fi
+# restart services & run post-sync script hook
+startServices
+runPostSyncHook
 
 
 

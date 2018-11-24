@@ -68,6 +68,7 @@ Compressed image files cannot be incrementally cloned to. This will be smaller t
 + `--compress-file` only for cloning to file - will compress the output stream using gzip. Does not apply to device cloning. NB: Incremental cloning isn't possible to a compressed image file.
 + `--trim-source` useful when using `--compress-file`. Will run a `fstrim` on all source partitions, which zero's unused space and therefore can significantly reduce the size of the compressed image file.
 + `--script` run in non-interactive mode. All user input is assumed to be yes. Useful for running via cron. You are strongly advised to test your clone run a few times before automating the process.
++ `--services` comma separated list of systemctl managed services to stop before clone process starts & re-started after finishing.
 + `--ignore-warnings` dont abort when a warning is hit. ClonePi performs a number of checks before starting a run & outputs a warning if it thinks you may have something wrong. It then then aborts for safety. Due to the destructive nature of what it does, you should use this switch with caution. When applied along with the `--script` switch, this is especially dangerous.
 + `--wait-before-unmount` pause at the end of a clone run, before the destination is unmounted. Useful for making changes to clone before using it in another Pi.
 + `--hook-pre-sync` specify a script to be run prior to main sync process. See script hooks section for more detail.
@@ -142,6 +143,13 @@ Some typical example use cases follow
 
 ## Advanced Configuration
 
+### Stopping & Starting Services
+It can be useful to stop some services prior to the clone process to ensure consistency of the disk. Clonepi makes this easy for systemctl managed services, eg...
+```
+sudo clonepi /dev/sdb --services=udisks2,plexmediaserver
+```
+This will stop udisks2.service & plexmediaserver.service before starting the clone process and will restart them both after finishing.
+
 ### Script Hooks
 Script hooks allow you to inject your own code at specific points during the ClonePi process, eg...
 ```
@@ -155,7 +163,7 @@ Currently there are two hooks available
 
 Typical use cases;
 
-+ Stop services/apps before starting sync and restarting them after sync finishes.
++ Stop services/apps before starting sync and restarting them after sync finishes. (NB: the `--services` switch can also do this)
 + Prepare the source disk before syncing.
 + Prepare the clone disk after sync - eg: modify hostname/fixed IP address if intended for anothe Pi on your network etc.
 

@@ -1,3 +1,16 @@
+## 1.7.0 (24th November 2018)
+
+FEATURES:
+
+ - added --services switch to automatically stop + start systemctl services
+
+IMPROVEMENTS:
+
+BUG FIXES:
+
+ - fixed pre-sync hook not being called if the dest disk needs initialising
+
+
 ## 1.6.2 (19th July 2018)
 
 FEATURES:

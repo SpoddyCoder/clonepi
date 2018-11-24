@@ -1,3 +1,15 @@
+## 1.7.1 (24th November 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - added check for udisks2 in pre-flight checks as known to cause issues
+ - clone process timer now includes time spent doing cleanup
+
+BUG FIXES:
+
+
 ## 1.7.0 (24th November 2018)
 
 FEATURES:

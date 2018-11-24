@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.7.0
+VER=1.7.1
 
 
 
@@ -47,7 +47,7 @@ usageInfo()
 	echo
 	echo "Examples:"
 	echo "   sudo clonepi /dev/sdb --init-destination --rsync-verbose"
-	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7 --script"
+	echo "   sudo clonepi 6891fb21-30be-4cd5-88bf-e973b3bc08b7 --script --services=apache2,mysql"
 	echo "   sudo clonepi /mnt/nas/system/backups/pi-plex.img --script --quiet"
 	echo
 }
@@ -391,7 +391,7 @@ if [ $SCRIPT_MODE = true ]; then
 	doMsg "Cloning to : $DEST_DISK" "msg"
 fi
 # check if PATH has sbin - if not use the EXPORT_PATH from conf
-# (because cron generally has a limited environment setup - this makes invoking ClonePi from cron easier)
+# because cron generally has a limited environment setup - this makes invoking ClonePi from cron easier
 CHECKPATH=`echo $PATH | grep sbin`
 if [ -z "$CHECKPATH" ]; then
 	if [ -n "$EXPORT_PATH" ]; then
@@ -399,7 +399,19 @@ if [ -z "$CHECKPATH" ]; then
 		export PATH=$EXPORT_PATH
 	fi
 fi
-
+# check if udisks2 service is running, known to cause issues: https://github.com/SpoddyCoder/clonepi/issues/2
+if [ -x "$(command -v systemctl)" ]; then
+	servicecheck=`systemctl list-unit-files | grep enabled | grep udisks2 | wc -l`
+	if [ $servicecheck = 1 ]; then
+		servicerunning=`systemctl is-active --quiet udisks2`
+		if [ $? -eq 0 ]; then
+			# udisks running, show warning if not specified in --services list
+			if ! [[ $SERVICE_LIST == *"udisks2"* ]]; then
+				doMsg "udisks2 service is running, consider using the --services switch to stop/start it, check README for more info" "warn"
+			fi
+		fi
+	fi
+fi
 
 #################################################
 # determine & setup destination
@@ -529,7 +541,7 @@ DEST_DISK_NAME=${DEST_DISK#/dev/}
 if [ $INIT_DEST_FILE = true -a "$CLONE_TO" = "file" ]; then
 	# if cloning to a file & initialising, then this is done by full dd clone process
 	# no need for device checks
-	echo "just a stub atm" > /dev/null
+	:
 
 else
 	# cloning to a device (or a file with a loop device setup)
@@ -1307,12 +1319,12 @@ runPostSyncHook
 # clone process end
 #################################################
 
+# may wait for user confirm (set in conf)
+doCleanup
+
 END_TIMER=`date '+%s'`
 PROCESS_TIME=$((END_TIMER - START_TIMER))
 doMsg "total clone process time : $((PROCESS_TIME / 60))m $((PROCESS_TIME % 60))s" "info"
-
-# may wait for user confirm (set in conf)
-doCleanup
 
 END_TIME=`date '+%Y-%m-%dT%H:%M:%S'`
 if [ $WITH_WARNINGS = true ]; then

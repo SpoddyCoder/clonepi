@@ -207,17 +207,6 @@ A couple of tips and a couple warnings when identifying your device;
 1. The PARTUUID of the boot volume on the source disk will be identical on the clone (the MBR is a bit for bit clone).
 
 
-## Contributing
-Contributions and pull requests are welcome, but we ask the following guidelines are respected;
-
-+ the PR adds a compelling new feature 
-+ OR addresses a known / open issue
-+ OR improves reliability / robustness
-+ adhere to current coding style used within the source - good comments, tab indents etc.
-+ be hygenic, ensure all secondary tasks are done - robustness checks, update summary, readme, installer etc.
-+ don't update version num - will be incremented when the PR is merged
-
-
 ## Additional Notes
 This project owes it's genesis to rpi-clone and is based on the same clever "partial dd & full rsync" approach.
 Check it out @ https://github.com/billw2/rpi-clone

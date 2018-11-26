@@ -1,3 +1,14 @@
+## 1.7.3 (26th November 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+ - added -H -A -X options to rsync to preserve additional file attributes
+
+BUG FIXES:
+
+
 ## 1.7.2 (24th November 2018)
 
 FEATURES:

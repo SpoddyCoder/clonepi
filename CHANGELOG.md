@@ -1,3 +1,14 @@
+## 1.7.4 (22nd December 2018)
+
+FEATURES:
+
+IMPROVEMENTS:
+
+BUG FIXES:
+
+ - fixed installer when using downloaded release zip bundle
+
+
 ## 1.7.3 (26th November 2018)
 
 FEATURES:

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # install script for ClonePi
-# last updated @ v1.6.2
+# last updated @ v1.7.4
 #
 # - gets latest available version from github
 # - updates source repo if possible
@@ -121,7 +121,7 @@ if [ -d .git ]; then
 	fi
 else
 	# not a git repo, assume download zip
-	if [ "$CUR_VERSION" != "$NEW_VERSION" ]; then
+	if [ "$REMOTE_VERSION" != "$NEW_VERSION" ]; then
 		doMsg "Source install dir is not upto date.\nDownload the latest zip to get latest version." "error"
 	fi
 fi

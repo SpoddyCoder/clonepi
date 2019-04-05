@@ -1015,7 +1015,7 @@ trimSource()
 		while read -r SRC_SYNC_DIR; do
 			FSTRIM=`fstrim -v $SRC_SYNC_DIR 2>&1`
 			if [ $? = 0 ]; then
-				doMsg "filesyste at $FSTRIM" "info"
+				doMsg "filesystem at $FSTRIM" "info"
 			else
 				doMsg "filesystem at $SRC_SYNC_DIR does not support TRIM" "info"
 			fi

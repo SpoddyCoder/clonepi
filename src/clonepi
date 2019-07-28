@@ -1139,7 +1139,7 @@ else
 				# using this approach: http://gparted.org/h2-fix-msdos-pt.php
 				doMsg "Fixing MBR on ${DEST_DISK_NAME}..." "info"
 				# get current MBR
-				MBR=`sfdisk -d $DEST_DISK`
+				MBR=`sfdisk -d $DEST_DISK|tr -s \ `
 				# change partition size(s) so they are within DEST_SECTORS
 				if [ ! "$SRC_EXTENDED_PART_NUM" = 0 ]; then
 					# modify extended partition

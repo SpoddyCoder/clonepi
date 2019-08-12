@@ -4,7 +4,7 @@
 #
 # see CHANGELOG.txt for release notes
 #
-VER=1.7.4
+VER=1.7.5
 
 
 
@@ -150,7 +150,7 @@ cleanupSourceMounts()
 		# remove the partition dirs
 		while read -r SRC_DIR; do
 			if umount $SRC_DIR; then
-				doMSg "unmounted source partition from $SRC_DIR" "info"
+				doMsg "unmounted source partition from $SRC_DIR" "info"
 				if rmdir $SRC_DIR; then
 					doMsg "deleted empty source partition dir $SRC_DIR" "info"
 				else
@@ -1091,6 +1091,17 @@ runPostSyncHook()
 	fi
 }
 
+initDest()
+{
+sfdisk --delete /dev/$DEST_DISK
+echo -e "size=+63M, type=e\ntype=5\nsize=+32M,type=83\nsize=+256M,type=c\ntype=83"| sfdisk $DEST_DISK
+partprobe
+mkfs.vfat ${DEST_DISK}1
+mkfs -t ext4 -F ${DEST_DISK}5
+mkfs.vfat -F 32 ${DEST_DISK}6
+partprobe
+}
+
 if [ $INIT_DEST_FILE = true -a "$CLONE_TO" = "file" ]; then
 	#
         # full dd clone
@@ -1124,7 +1135,7 @@ else
 		# partial dd clone of src disk -> dest disk
 		doMsg "initialising $DEST_DISK, this may take some time..." "info"
 		doMsg "setting up destination partition structure, copying ${DD_COUNT}MB..." "info"
-		dd if=$SRC_DISK of=$DEST_DISK bs=1M count=$DD_COUNT
+		initDest
 		if [ ! "$?" = 0 ]; then
 			doMsg "$DEST_DISK partial image did not complete." "error"
 		fi
@@ -1132,39 +1143,14 @@ else
 		LAST_PART_DEST_DEV="${DEST_DISK}${LAST_PART_NUM}"
 		doMsg "running filesystem repair on last partition ${LAST_PART_DEST_DEV}" "info"
 		fsck -p $LAST_PART_DEST_DEV &> /dev/null	# discard errors
-
 		if [ $RESIZE_DEST_DISK = true ]; then
 			if [ $SRC_LARGER_THAN_DEST = true ]; then
 				# resize down - parted wont run (Error: Can't have a partition outside the disk!) until the MBR is fixed up
 				# using this approach: http://gparted.org/h2-fix-msdos-pt.php
 				doMsg "Fixing MBR on ${DEST_DISK_NAME}..." "info"
 				# get current MBR
-				MBR=`sfdisk -d $DEST_DISK`
-				# change partition size(s) so they are within DEST_SECTORS
-				if [ ! "$SRC_EXTENDED_PART_NUM" = 0 ]; then
-					# modify extended partition
-					EXT_PART="${DEST_DISK}${SRC_EXTENDED_PART_NUM}"
-					EXT_PART_ESCAPED=$(echo "$EXT_PART" | sed 's/\//\\\//g')
-					EXT_PART_START=`fdisk -l -u $DEST_DISK | grep "^${EXT_PART}" | awk '{print $2}'`
-					EXT_PART_NEW_SIZE=$((DEST_SECTORS - EXT_PART_START))
-					MBR_SEARCH_TERM=`echo "$MBR" | grep "^${EXT_PART}" | cut -f 2 -d, | xargs`
-					MBR_REPLACE_TERM="size= ${EXT_PART_NEW_SIZE}"
-					MBR=`echo "$MBR" | sed "/^${EXT_PART_ESCAPED}/s/${MBR_SEARCH_TERM}/${MBR_REPLACE_TERM}/"`
-					doMsg "...modifying extended partition ${EXT_PART}..." "info"
-				fi
-				# modify last partition
-				LAST_PART_ESCAPED=$(echo "$LAST_PART_DEST_DEV" | sed 's/\//\\\//g')
-				LAST_PART_START=`fdisk -l -u $DEST_DISK | grep "^${LAST_PART_DEST_DEV}" | awk '{print $2}'`
-				LAST_PART_NEW_SIZE=$((DEST_SECTORS - LAST_PART_START))
-				MBR_SEARCH_TERM=`echo "$MBR" | grep "^${LAST_PART_DEST_DEV}" | cut -f 2 -d, | xargs`
-				MBR_REPLACE_TERM="size= ${LAST_PART_NEW_SIZE}"
-				MBR=`echo "$MBR" | sed "/^${LAST_PART_ESCAPED}/s/${MBR_SEARCH_TERM}/${MBR_REPLACE_TERM}/"`
-				doMsg "...modifying last partition ${LAST_PART_DEST_DEV}..." "info"
-				# write MBR back to disk
-				# NB: possible to get resource busy error from sfdisk, even tho it updates succesfully
-				# a brief pause the update seems to resolve - but it may be better to discard error and assume OK
-				sleep 1
-				sfdisk --force $DEST_DISK <<< "$MBR"
+				initDest
+
 				if [ "$?" = 0 ]; then
 					doMsg "... updated MBR OK" "info"
 				else
